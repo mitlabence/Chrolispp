@@ -51,6 +51,14 @@
 
 int main()
 {
+  std::cout << "Choose the CSV file with the protocol. Each row should have "
+               "five entries:\n"
+            << "1. LED index (0-5)\n"
+            << "2. pulse length (integer, ms)\n"
+            << "3. time between pulses (integer, ms)\n"
+            << "4. number of pulses (integer)\n"
+            << "5. brightness(integer, 0 - 1000, 1000 = 100.0 %)"
+      << std::endl;
   std::string fpath = BrowseFile("C:\\");
   if (fpath.empty()) {
     std::cerr << "No file selected." << std::endl;
@@ -65,8 +73,6 @@ int main()
     std::cerr << "No protocol steps found in the CSV file." << std::endl;
     return -1;
   }
-
-  return 0;
     ViStatus err;
 #ifdef WIN32
     ViChar bitness[TL6WL_LONG_STRING_SIZE] = "x86";
@@ -175,9 +181,13 @@ int main()
     {
         printf(" Box setup invalid\n");
     }
+    int i_step = 1;
+    size_t n_steps = protocolSteps.size();
     for (ProtocolStep& step : protocolSteps) {
-      LED_PulseNTimes(instr, step.led_index, step.time_between_pulses_ms, step.pulse_width_ms, step.n_pulses, step.brightness);
+      std::cout << "step " << i_step << "/" << n_steps << std::endl;
       step.printStep();
+      LED_PulseNTimes(instr, step.led_index, step.time_between_pulses_ms, step.pulse_width_ms, step.n_pulses, step.brightness);
+      i_step++;
     }
     
 

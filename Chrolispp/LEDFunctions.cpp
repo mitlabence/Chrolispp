@@ -1,8 +1,8 @@
 
 #include "LEDFunctions.hpp" 
 void LED_PulseNTimes(ViSession instr, ViInt16 led_index,
-                            ViInt16 time_between_pulses_ms,
-                            ViInt16 pulse_width_ms, ViInt32 n_pulses,
+                            ViInt32 time_between_pulses_ms,
+                            ViInt32 pulse_width_ms, ViInt32 n_pulses,
                             ViInt16 brightness) {
   int led_brightnesses[6] = {0, 0, 0, 0, 0, 0};
   ViBoolean led_states[6] = {VI_FALSE, VI_FALSE, VI_FALSE,

@@ -13,4 +13,6 @@ std::string BrowseFile(std::string saved_path);
 // readFirstFiveColumns function declaration
 std::vector<ProtocolStep> readProtocolCSV(const std::string& filePath);
 
+bool isCSVFile(const std::string& filePath);
+
 #endif  // CSV_READER_HPP

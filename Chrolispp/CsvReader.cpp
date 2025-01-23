@@ -64,3 +64,13 @@ std::vector<ProtocolStep> readProtocolCSV(const std::string& filePath) {
   file.close();
   return protocolSteps;
 }
+
+
+bool isCSVFile(const std::string& filePath) {
+  // Check if the filePath ends with ".csv"
+  if (filePath.length() >= 4 &&
+      filePath.substr(filePath.length() - 4) == ".csv") {
+    return true;
+  }
+  return false;
+}

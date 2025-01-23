@@ -52,7 +52,14 @@
 int main()
 {
   std::string fpath = BrowseFile("C:\\");
-  // TODO: check if it is a valid csv file path!
+  if (fpath.empty()) {
+    std::cerr << "No file selected." << std::endl;
+    return -1;
+  }
+  if (!isCSVFile(fpath)) {
+    std::cerr << "The selected file is not a CSV file." << std::endl;
+    return -1;
+  }
   std::vector<ProtocolStep> protocolSteps = readProtocolCSV(fpath);
   if (protocolSteps.size() == 0) {
     std::cerr << "No protocol steps found in the CSV file." << std::endl;

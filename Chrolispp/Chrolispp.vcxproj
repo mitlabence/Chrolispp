@@ -20,6 +20,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Chrolispp.cpp" />
+    <ClCompile Include="CsvReader.cpp" />
+    <ClCompile Include="LEDFunctions.cpp" />
+    <ClCompile Include="ProtocolStep.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CsvReader.hpp" />
+    <ClInclude Include="LEDFunctions.hpp" />
+    <ClInclude Include="ProtocolStep.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

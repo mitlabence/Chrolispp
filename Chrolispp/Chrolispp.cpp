@@ -42,35 +42,24 @@
 #include <Windows.h>
 #include <stdio.h>
 #include <string.h>
-
 #include "TL6WL.h"
-
-void LED_PulseNTimes(ViSession instr, ViInt8 led_index,
-                     ViInt16 time_between_pulses_ms, ViInt16 pulse_width_ms,
-                     ViInt32 n_pulses, ViInt16 brightness) {
-  int led_brightnesses[6] = {0, 0, 0, 0, 0, 0};
-  ViBoolean led_states[6] = {VI_FALSE, VI_FALSE, VI_FALSE,
-                             VI_FALSE, VI_FALSE, VI_FALSE};
-  led_brightnesses[led_index] = brightness;
-  led_states[led_index] = VI_TRUE;
-  for (int i = 0; i < n_pulses; i++) {
-    TL6WL_setLED_HeadBrightness(instr, led_brightnesses[0], led_brightnesses[1],
-                                led_brightnesses[2], led_brightnesses[3],
-                                led_brightnesses[4], led_brightnesses[5]);
-    TL6WL_setLED_HeadPowerStates(instr, led_states[0], led_states[1],
-                                 led_states[2], led_states[3], led_states[4],
-                                 led_states[5]);
-    Sleep(pulse_width_ms);
-    TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE, VI_FALSE,
-                                 VI_FALSE, VI_FALSE);
-    Sleep(time_between_pulses_ms);
-  }
-}
-
+#include "LEDFunctions.hpp"
+#include "CsvReader.hpp"
+#include "ProtocolStep.hpp"
+#include <iostream>
 
 
 int main()
 {
+  std::string fpath = BrowseFile("C:\\");
+  // TODO: check if it is a valid csv file path!
+  std::vector<ProtocolStep> protocolSteps = readProtocolCSV(fpath);
+  if (protocolSteps.size() == 0) {
+    std::cerr << "No protocol steps found in the CSV file." << std::endl;
+    return -1;
+  }
+
+  return 0;
     ViStatus err;
 #ifdef WIN32
     ViChar bitness[TL6WL_LONG_STRING_SIZE] = "x86";
@@ -90,7 +79,7 @@ int main()
     if (VI_SUCCESS != err)
     {
         printf("  TL6WL_findRsrc() :\n    Error Code = %#.8lX\n" , err);
-        printf("\nSample Terminated\n");
+        printf("\nProtocol Terminated\n");
         return -1;
     }
 
@@ -131,14 +120,14 @@ int main()
     if (VI_SUCCESS != err)
     {
         printf("  TL6WL_getRsrcName() :\n    Error Code = %#.8lX\n" , err);
-        printf("\nSample Terminated\n");
+        printf("\nProtocol Terminated\n");
         return -2;
     }
     err = TL6WL_init(resourceName , IDQuery , resetDevice , &instr);
     if (VI_SUCCESS != err)
     {
         printf("  TL6WL_init() :\n    Error Code = %#.8lX\n" , err);
-        printf("\nSample Terminated\n");
+        printf("\nProtocol Terminated\n");
         return -3;
     }
 
@@ -179,7 +168,11 @@ int main()
     {
         printf(" Box setup invalid\n");
     }
-    LED_PulseNTimes(instr, 2, 200, 100, 10, 100);
+    for (ProtocolStep& step : protocolSteps) {
+      LED_PulseNTimes(instr, step.led_index, step.time_between_pulses_ms, step.pulse_width_ms, step.n_pulses, step.brightness);
+      step.printStep();
+    }
+    
 
     printf("\nClose Device\n");
     err = TL6WL_close(instr);

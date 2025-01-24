@@ -254,10 +254,10 @@ int main()
     {
         printf("  TLUP_close() :\n    Error Code = %#.8lX\n" , err);
     }
-    printf("\nProtocol Ended. Press enter to quit.\n");
-    do {
-      std::cout << '\n' << "Press q to exit...";
-    } while (getchar() != 'q');
+    printf("\nProtocol Ended.\n");
+    while (getchar() != 'q') {
+      std::cout << '\n' << "Press q then enter to quit...";
+    }
     return 0;
 }
 

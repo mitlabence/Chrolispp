@@ -73,6 +73,50 @@ int main()
     std::cerr << "No protocol steps found in the CSV file." << std::endl;
     return -1;
   }
+  // Sanity checking the protocol steps
+  for (int i_step = 0; i_step < protocolSteps.size(); i_step++) {
+    ProtocolStep& step = protocolSteps[i_step];
+    // Check if the LED index is in the correct range
+    if (step.led_index < 0 || step.led_index > 5) {
+      std::cerr << "Invalid LED index in step " << i_step + 1 << std::endl;
+      return -1;
+    }
+    // Check if the pulse length is positive and not too large (< 6 h = 21600000 ms)
+    if (step.pulse_width_ms <= 0 || step.pulse_width_ms > 21600000) {
+      std::cerr << "Invalid pulse length in step " << i_step + 1 << std::endl;
+      return -1;
+    }
+    // Check if the time between pulses is positive and not too large (< 6 h =
+    // 21600000 ms)
+    if (step.time_between_pulses_ms <= 0 ||
+        step.time_between_pulses_ms > 21600000) {
+      std::cerr << "Invalid time between pulses in step " << i_step + 1
+                << std::endl;
+      return -1;
+    }
+    // Check if the number of pulses is positive and not too large (< 10000)
+    if (step.n_pulses <= 0 || step.n_pulses > 10000) {
+      std::cerr << "Invalid number of pulses in step " << i_step + 1
+                << std::endl;
+      return -1;
+    }
+    // Print step for user to review
+    std::cout << "Step " << i_step + 1 << ":\n";
+    step.printStep();
+  }
+  // Wait for user to press space to start the protocol, or q to quit.
+  std::cout << "\nPress y + enter to start the protocol, or q + enter to quit." << std::endl;
+  char c = ' ';
+  while (c != 'y' && c != 'q') {
+    c = getchar();
+  }
+  if (c == 'q') {
+    return 0;
+  }
+  if (c == ' ') {
+    std::cout << "Starting protocol." << std::endl;
+  }
+
     ViStatus err;
 #ifdef WIN32
     ViChar bitness[TL6WL_LONG_STRING_SIZE] = "x86";
@@ -181,6 +225,7 @@ int main()
     {
         printf(" Box setup invalid\n");
     }
+    std::cout << "\n" << std::endl;
     int i_step = 1;
     size_t n_steps = protocolSteps.size();
     for (ProtocolStep& step : protocolSteps) {
@@ -197,7 +242,10 @@ int main()
     {
         printf("  TLUP_close() :\n    Error Code = %#.8lX\n" , err);
     }
-    printf("\nProtocol End\n");
+    printf("\nProtocol Ended. Press enter to quit.\n");
+    do {
+      std::cout << '\n' << "Press q to exit...";
+    } while (getchar() != 'q');
     return 0;
 }
 

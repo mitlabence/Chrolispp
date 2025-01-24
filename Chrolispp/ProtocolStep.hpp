@@ -5,12 +5,13 @@
 
 class ProtocolStep {
  public:
-  ProtocolStep(ViInt16 led_index, ViInt32 time_between_pulses_ms,
-               ViInt32 pulse_width_ms, ViInt32 n_pulses, ViInt16 brightness);
+  ProtocolStep(ViInt16 led_index, ViInt32 pulse_width_ms,
+               ViInt32 time_between_pulses_ms,
+                ViInt32 n_pulses, ViInt16 brightness);
 
   ViInt16 led_index;
-  ViInt32 time_between_pulses_ms;
   ViInt32 pulse_width_ms;
+  ViInt32 time_between_pulses_ms;
   ViInt32 n_pulses;
   ViInt16 brightness;
 

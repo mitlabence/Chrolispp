@@ -50,7 +50,7 @@
 #include "ProtocolStep.hpp"
 #include <iostream>
 
-#define VERSION_STR "1.1.0"  // Version, change with each release!
+#define VERSION_STR "1.1.1"  // Version, change with each release!
 
 int main()
 {

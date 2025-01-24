@@ -46,11 +46,20 @@
 #include <string.h>
 #include "TL6WL.h"
 #include "LEDFunctions.hpp"
-#include "CsvReader.hpp"
+#include "Utils.hpp"
 #include "ProtocolStep.hpp"
 #include <iostream>
+#include <boost/log/trivial.hpp>
+#include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/log/utility/setup/file.hpp>
 
 #define VERSION_STR "1.1.1"  // Version, change with each release!
+#define LOGFNAME_PREFIX "stimlog_"  // beginning of log file name
+
+void initLogging(std::string& fpath_log) {
+  boost::log::add_file_log(fpath_log);
+  boost::log::add_common_attributes();
+}
 
 int main()
 {
@@ -61,9 +70,12 @@ int main()
             << "2. pulse length (integer, ms)\n"
             << "3. time between pulses (integer, ms)\n"
             << "4. number of pulses (integer)\n"
-            << "5. brightness(integer, 0 - 1000, 1000 = 100.0 %)"
+            << "5. brightness (integer, 0 - 1000, 1000 = 100.0 %)"
       << std::endl;
-  std::string fpath = BrowseFile("C:\\");
+  std::string suggested_log_fname = generateLogFileName(LOGFNAME_PREFIX);
+
+  std::string fpath = BrowseCSV();
+  
   if (fpath.empty()) {
     std::cerr << "No file selected." << std::endl;
     return -1;
@@ -77,6 +89,18 @@ int main()
     std::cerr << "No protocol steps found in the CSV file." << std::endl;
     return -1;
   }
+  // Select output log file path and name
+  std::string fpath_log 
+= SelectFolderAndSuggestFile(suggested_log_fname);
+  if (fpath_log.empty()) {
+    std::cerr << "No log file selected." << std::endl;
+    return -1;
+  }
+  // Set up logging
+  //TODO: add logging calls, check if info and error can be differentiated!
+  initLogging(fpath_log);
+  BOOST_LOG_TRIVIAL(info) << "This is an informational message";
+  BOOST_LOG_TRIVIAL(error) << "This is an error message";
   // Sanity checking the protocol steps
   for (int i_step = 0; i_step < protocolSteps.size(); i_step++) {
     ProtocolStep& step = protocolSteps[i_step];
@@ -262,6 +286,8 @@ int main()
     }
     return 0;
 }
+
+
 
 
 

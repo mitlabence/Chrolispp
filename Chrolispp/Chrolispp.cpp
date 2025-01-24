@@ -50,9 +50,11 @@
 #include "ProtocolStep.hpp"
 #include <iostream>
 
+#define VERSION_STR "1.1.0"  // Version, change with each release!
 
 int main()
 {
+  std::cout << "Chrolis++ v" << VERSION_STR << "\n\n" << std::endl;
   std::cout << "Choose the CSV file with the protocol. Each row should have "
                "five entries:\n"
             << "1. LED index (0-5)\n"

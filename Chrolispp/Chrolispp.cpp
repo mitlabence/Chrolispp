@@ -37,6 +37,8 @@
  * Each row with these columns corresponds to one step in the protocol.
  * These rows (steps) will be executed in order. The total time of one step is
  * n_pulses * (pulse_length + time_between_pulses) ms.
+ * Breaks: If the pulse length is 0, it means a break of time_between_pulses ms. In this case, a single break
+ * of length <time between pulses> is executed, disregarding all other values.
  */
 
 #include <Windows.h>
@@ -81,8 +83,9 @@ int main()
       std::cerr << "Invalid LED index in step " << i_step + 1 << std::endl;
       return -1;
     }
-    // Check if the pulse length is positive and not too large (< 6 h = 21600000 ms)
-    if (step.pulse_width_ms <= 0 || step.pulse_width_ms > 21600000) {
+    // Check if the pulse length is > 0 (0 means break) and not too large (< 6 h =
+    // 21600000 ms)
+    if (step.pulse_width_ms < 0 || step.pulse_width_ms > 21600000) {
       std::cerr << "Invalid pulse length in step " << i_step + 1 << std::endl;
       return -1;
     }
@@ -231,7 +234,9 @@ int main()
     for (ProtocolStep& step : protocolSteps) {
       std::cout << "step " << i_step << "/" << n_steps << std::endl;
       step.printStep();
-      LED_PulseNTimes(instr, step.led_index, step.time_between_pulses_ms, step.pulse_width_ms, step.n_pulses, step.brightness);
+      LED_PulseNTimes(instr, step.led_index, step.pulse_width_ms,
+                      step.time_between_pulses_ms, step.n_pulses,
+                      step.brightness);
       i_step++;
     }
     

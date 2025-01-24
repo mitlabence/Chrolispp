@@ -89,11 +89,18 @@ int main()
       std::cerr << "Invalid pulse length in step " << i_step + 1 << std::endl;
       return -1;
     }
-    // Check if the time between pulses is positive and not too large (< 6 h =
+    // Check if the time between pulses is not negative and not too large (< 6 h =
     // 21600000 ms)
-    if (step.time_between_pulses_ms <= 0 ||
+    if (step.time_between_pulses_ms < 0 ||
         step.time_between_pulses_ms > 21600000) {
       std::cerr << "Invalid time between pulses in step " << i_step + 1
+                << std::endl;
+      return -1;
+    }
+    // Check corner case: break of length 0 (both pulse length and time between
+    // pulses are set to 0
+    if (step.pulse_width_ms == 0 && step.time_between_pulses_ms == 0) {
+      std::cerr << "Invalid step " << i_step + 1 << ": No action."
                 << std::endl;
       return -1;
     }

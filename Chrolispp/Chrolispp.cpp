@@ -50,16 +50,33 @@
 #include "ProtocolStep.hpp"
 #include <iostream>
 #include <boost/log/trivial.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
 #include <boost/log/utility/setup/file.hpp>
+#include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/sources/logger.hpp>
+#include <boost/log/support/date_time.hpp>
 
-#define VERSION_STR "1.1.1"  // Version, change with each release!
+
+#define VERSION_STR "1.2.0"  // Version, change with each release!
 #define LOGFNAME_PREFIX "stimlog_"  // beginning of log file name
 
+
 void initLogging(std::string& fpath_log) {
-  boost::log::add_file_log(fpath_log);
+  boost::log::add_file_log(
+      boost::log::keywords::file_name = fpath_log,
+      boost::log::keywords::format =
+          (boost::log::expressions::stream
+           << "["
+           << boost::log::expressions::format_date_time<
+                  boost::posix_time::ptime>("TimeStamp", "%Y-%m-%d %H:%M:%S.%f")
+           << "] [" << boost::log::trivial::severity << "] "
+           << boost::log::expressions::smessage));
+
   boost::log::add_common_attributes();
 }
+
+
+
 
 int main()
 {
@@ -99,41 +116,50 @@ int main()
   // Set up logging
   //TODO: add logging calls, check if info and error can be differentiated!
   initLogging(fpath_log);
-  BOOST_LOG_TRIVIAL(info) << "This is an informational message";
-  BOOST_LOG_TRIVIAL(error) << "This is an error message";
+  BOOST_LOG_TRIVIAL(info) << "Logging started. Code version: " << VERSION_STR;
   // Sanity checking the protocol steps
+  char err_buffer[40];
   for (int i_step = 0; i_step < protocolSteps.size(); i_step++) {
     ProtocolStep& step = protocolSteps[i_step];
     // Check if the LED index is in the correct range
     if (step.led_index < 0 || step.led_index > 5) {
-      std::cerr << "Invalid LED index in step " << i_step + 1 << std::endl;
+      sprintf_s(err_buffer, "Invalid LED index in step %d", i_step + 1);
+      BOOST_LOG_TRIVIAL(error) << err_buffer;
+      std::cerr<< err_buffer <<std::endl;
       return -1;
     }
     // Check if the pulse length is > 0 (0 means break) and not too large (< 6 h =
     // 21600000 ms)
     if (step.pulse_width_ms < 0 || step.pulse_width_ms > 21600000) {
-      std::cerr << "Invalid pulse length in step " << i_step + 1 << std::endl;
+      sprintf_s(err_buffer, "Invalid pulse length in step %d", i_step + 1);
+      BOOST_LOG_TRIVIAL(error) << err_buffer;
+      std::cerr << err_buffer <<std::endl;
       return -1;
     }
     // Check if the time between pulses is not negative and not too large (< 6 h =
     // 21600000 ms)
     if (step.time_between_pulses_ms < 0 ||
         step.time_between_pulses_ms > 21600000) {
-      std::cerr << "Invalid time between pulses in step " << i_step + 1
-                << std::endl;
+      sprintf_s(err_buffer, "Invalid time between pulses in step %d",
+                   i_step + 1);
+      BOOST_LOG_TRIVIAL(error) << err_buffer;
+      std::cerr << err_buffer << std::endl;
       return -1;
     }
     // Check corner case: break of length 0 (both pulse length and time between
     // pulses are set to 0
     if (step.pulse_width_ms == 0 && step.time_between_pulses_ms == 0) {
-      std::cerr << "Invalid step " << i_step + 1 << ": No action."
-                << std::endl;
+      sprintf_s(err_buffer, "Invalid step %d: No action.",
+                   i_step + 1);
+      BOOST_LOG_TRIVIAL(error) << err_buffer;
+      std::cerr << err_buffer << std::endl;
       return -1;
     }
     // Check if the number of pulses is positive and not too large (< 10000)
     if (step.n_pulses <= 0 || step.n_pulses > 10000) {
-      std::cerr << "Invalid number of pulses in step " << i_step + 1
-                << std::endl;
+      sprintf_s(err_buffer, "Invalid number of pulses in step %d", i_step + 1);
+      BOOST_LOG_TRIVIAL(error) << err_buffer;
+      std::cerr << err_buffer << std::endl;
       return -1;
     }
     // Print step for user to review
@@ -147,9 +173,11 @@ int main()
     c = getchar();
   }
   if (c == 'q') {
+    BOOST_LOG_TRIVIAL(info) << "Application closed.";
     return 0;
   }
-  if (c == ' ') {
+  if (c == 'y') {
+    BOOST_LOG_TRIVIAL(info) << "User entered y, preparing to start protocol...";
     std::cout << "Starting protocol." << std::endl;
   }
 
@@ -165,12 +193,16 @@ int main()
     printf("START : Chrolis++\n");
 
     printf("Search for connected CHROLIS Devices\n");
+    BOOST_LOG_TRIVIAL(info) << "Search for connected CHROLIS Devices.";
     ViSession instr = 0;
     ViUInt32 rsrcCnt = 0;
     err = TL6WL_findRsrc(instr, &rsrcCnt);
     printf("Found '%lu' Devices\n" , rsrcCnt);
     if (VI_SUCCESS != err)
     {
+        sprintf_s(err_buffer, "TL6WL_findRsrc() : Error Code = %#.8lX",
+                       err);
+        BOOST_LOG_TRIVIAL(error) << err_buffer;
         printf("  TL6WL_findRsrc() :\n    Error Code = %#.8lX\n" , err);
         printf("\nProtocol Terminated\n");
         return -1;
@@ -204,86 +236,121 @@ int main()
         }
         else
         {
+          sprintf_s(err_buffer, "TL6WL_getRsrcName() : Error Code = %#.8lX",
+                       err);
+          BOOST_LOG_TRIVIAL(error) << err_buffer;
             printf("  TL6WL_getRsrcName() :\n    Error Code = %#.8lX\n" , err);
         }
     }
 
     printf("\nOpen first available Device found\n");
+    BOOST_LOG_TRIVIAL(info) << "Opening device: " << resourceName;
     err = TL6WL_getRsrcName(instr , 0 , resourceName);
     if (VI_SUCCESS != err)
     {
+      sprintf_s(err_buffer, "TL6WL_getRsrcName() : Error Code = %#.8lX",
+                   err);
+      BOOST_LOG_TRIVIAL(error) << err_buffer;
         printf("  TL6WL_getRsrcName() :\n    Error Code = %#.8lX\n" , err);
         printf("\nProtocol Terminated\n");
         return -2;
     }
+    BOOST_LOG_TRIVIAL(info) << "Initializing device: " << resourceName;
     err = TL6WL_init(resourceName , IDQuery , resetDevice , &instr);
     if (VI_SUCCESS != err)
     {
+      sprintf_s(err_buffer, "TL6WL_init() : Error Code = %#.8lX", err);
+      BOOST_LOG_TRIVIAL(error) << err_buffer;
         printf("  TL6WL_init() :\n    Error Code = %#.8lX\n" , err);
         printf("\nProtocol Terminated\n");
         return -3;
     }
 
+    BOOST_LOG_TRIVIAL(info) << "Reading Box Status Register.";
     printf("\nRead Box Status Register\n");
+
     ViUInt32 boxStatus;
     err = TL6WL_getBoxStatus(instr , &boxStatus);
     int bit0 , bit1 , bit2 , bit3 , bit4 , bit5 , bit6;
     if (bit0 = (boxStatus & 0x01))
     {
+      BOOST_LOG_TRIVIAL(info) << "Box is open.";
         printf(" Box is open\n");
     }
     else if (bit1 = (boxStatus & 0x02))
     {
+      BOOST_LOG_TRIVIAL(info) << "LLG not connected.";
         printf(" LLG not connected\n");
     }
 
     else if (bit2 = (boxStatus & 0x04))
     {
+      BOOST_LOG_TRIVIAL(info) << "Interlock is open.";
         printf(" Interlock is open\n");
     }
 
     else if (bit3 = (boxStatus & 0x08))
     {
+      BOOST_LOG_TRIVIAL(info) << "Using default adjustment.";
         printf(" Using default adjustment\n");
     }
 
     else if (bit4 = (boxStatus & 0x10))
     {
+      BOOST_LOG_TRIVIAL(info) << "Box overheated.";
         printf(" Box overheated\n");
     }
 
     else if (bit5 = (boxStatus & 0x20))
     {
+      BOOST_LOG_TRIVIAL(info) << "LED overheated.";
         printf(" LED overheated\n");
     }
 
     else if (bit6 = (boxStatus & 0x40))
     {
+      BOOST_LOG_TRIVIAL(info) << "Box setup invalid.";
         printf(" Box setup invalid\n");
     }
+    // If LED or Box overheated, abort protocol
+    if (bit4 || bit5) {
+      BOOST_LOG_TRIVIAL(error) << "Box or LED overheated. Protocol aborted.";
+      printf("Box or LED overheated. Protocol aborted.\n");
+      return -4;
+    }
     std::cout << "\n" << std::endl;
-    int i_step = 1;
+    int i_step = 0;
     size_t n_steps = protocolSteps.size();
+    BOOST_LOG_TRIVIAL(info)
+        << "Starting protocol with " << n_steps << " steps...";
     for (ProtocolStep& step : protocolSteps) {
-      std::cout << "step " << i_step << "/" << n_steps << std::endl;
-      step.printStep();
+       std::cout << "step " << i_step+1 << "/" << n_steps << std::endl;
+      char* stepChars = step.stepToChars();
+       BOOST_LOG_TRIVIAL(info) << "Step " << i_step << ": " << stepChars;
+      std::cout << stepChars << std::endl;
+      //delete[] stepChars;
       LED_PulseNTimes(instr, step.led_index, step.pulse_width_ms,
                       step.time_between_pulses_ms, step.n_pulses,
                       step.brightness);
+      BOOST_LOG_TRIVIAL(info) << "Step " << i_step << " done.";
       i_step++;
     }
     
-
+    BOOST_LOG_TRIVIAL(info) << "Closing device...";
     printf("\nClose Device\n");
     err = TL6WL_close(instr);
     if (VI_SUCCESS != err)
     {
+      sprintf_s(err_buffer, "TL6WL_close() : Error Code = %#.8lX", err);
+      BOOST_LOG_TRIVIAL(error) << err_buffer;
         printf("  TLUP_close() :\n    Error Code = %#.8lX\n" , err);
     }
+    BOOST_LOG_TRIVIAL(info) << "Device closed.";
     printf("\nProtocol Ended.\n");
     while (getchar() != 'q') {
       std::cout << '\n' << "Press q then enter to quit...";
     }
+    BOOST_LOG_TRIVIAL(info) << "Application closed.";
     return 0;
 }
 
@@ -301,3 +368,4 @@ int main()
 //   4. Use the Error List window to view errors
 //   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
 //   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
+

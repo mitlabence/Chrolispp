@@ -16,6 +16,7 @@ class ProtocolStep {
   ViInt16 brightness;
 
   void printStep();
+  char* stepToChars();
 };
 
 #endif  // PROTOCOL_STEP_HPP

@@ -197,6 +197,11 @@ int main()
     ViSession instr = 0;
     ViUInt32 rsrcCnt = 0;
     err = TL6WL_findRsrc(instr, &rsrcCnt);
+    if (rsrcCnt == 0) {
+      BOOST_LOG_TRIVIAL(error) << "No devices found. Protocol aborted.";
+      printf("No devices found. Protocol aborted.\n");
+      return -1;
+    }
     printf("Found '%lu' Devices\n" , rsrcCnt);
     if (VI_SUCCESS != err)
     {
@@ -207,6 +212,7 @@ int main()
         printf("\nProtocol Terminated\n");
         return -1;
     }
+    
 
     printf("\nGet Information of found Devices\n");
     ViChar resourceName[512] = "n/a";

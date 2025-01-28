@@ -44,5 +44,20 @@
     <ClInclude Include="include\ProtocolStep.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\external\IviVisaType.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\external\TL6WL.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\external\TL6WL_service.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\external\TLUP.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\external\visatype.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

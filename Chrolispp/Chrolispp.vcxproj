@@ -26,6 +26,11 @@
     <ClCompile Include="src\Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\external\IviVisaType.h" />
+    <ClInclude Include="include\external\TL6WL.h" />
+    <ClInclude Include="include\external\TL6WL_service.h" />
+    <ClInclude Include="include\external\TLUP.h" />
+    <ClInclude Include="include\external\visatype.h" />
     <ClInclude Include="include\LEDFunctions.hpp" />
     <ClInclude Include="include\Logger.hpp" />
     <ClInclude Include="include\ProtocolStep.hpp" />
@@ -191,7 +196,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Program Files\IVI Foundation\VISA\Win64\Include;C:\Program Files\IVI Foundation\VISA\Win64\Bin;C:\Program Files\Thorlabs\CHROLIS\Drivers\Instr\bin;C:\Program Files\Thorlabs\CHROLIS\Drivers\Instr\msvc64;C:\Program Files\IVI Foundation\VISA\Win64\Lib_x64\msc;C:\Program Files\IVI Foundation\IVI\Include;C:\Program Files\Thorlabs\upSERIES\Drivers\Instr\incl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\Projects\Chrolispp\Chrolispp\include\external;D:\Projects\Chrolispp\Chrolispp\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ShowIncludes>true</ShowIncludes>
       <SupportJustMyCode>true</SupportJustMyCode>
@@ -203,7 +208,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Program Files\IVI Foundation\VISA\Win64\Lib_x64\msc;C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Tools\MSVC\14.28.29910\lib\x64;C:\Program Files\IVI Foundation\VISA\Win64\Bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Tools\MSVC\14.28.29910\lib\x64;D:\Projects\Chrolispp\Chrolispp\lib\external;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>TL6WL_64.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <Version>1.3</Version>
     </Link>

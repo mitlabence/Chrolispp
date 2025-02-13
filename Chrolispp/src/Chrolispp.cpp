@@ -51,15 +51,86 @@
 #include <iostream>
 #include "Logger.hpp"
 
-
-#define VERSION_STR "1.3.0"  // Version, change with each release!
+#define VERSION_STR "1.4.0"  // Version, change with each release!
 #define LOGFNAME_PREFIX "stimlog_"  // beginning of log file name
 
 
+WCHAR* stringToWCHAR(const std::string& str) {
+  // Calculate the length of the wide character string
+  int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, NULL, 0);
 
-int main()
-{
-  std::cout << "Chrolis++ v" << VERSION_STR << "\n\n" << std::endl;
+  // Allocate memory for the wide character string
+  WCHAR* wStr = new WCHAR[len];
+
+  // Perform the conversion
+  MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, wStr, len);
+
+  return wStr;
+}
+
+
+int main(){
+  bool arduinoFound = false;
+  bool skipArduino = false;
+  std::string comPort;
+  std::cout << "Enter Arduino COM port number:";
+  std::cin >> comPort;
+  
+  // append COM to beginning of comPort string
+  comPort = "COM" + comPort;
+  WCHAR* COM_PORT = stringToWCHAR(comPort);
+  HANDLE h_Serial;
+    h_Serial = CreateFile(COM_PORT, GENERIC_READ | GENERIC_WRITE, 0, 0,
+                                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if (h_Serial == INVALID_HANDLE_VALUE) {
+      if (GetLastError() == ERROR_FILE_NOT_FOUND) {
+        CloseHandle(h_Serial);
+        throw std::invalid_argument("Serial port does not exist");
+      }
+      CloseHandle(h_Serial);
+      throw std::runtime_error("Error opening serial port");
+    }
+    DCB dcbSerialParam = {0};
+    dcbSerialParam.DCBlength = sizeof(dcbSerialParam);
+    if (!GetCommState(h_Serial, &dcbSerialParam)) {
+      throw std::runtime_error("Error getting state");
+    }
+
+    dcbSerialParam.BaudRate = CBR_9600;
+    dcbSerialParam.ByteSize = 8;
+    dcbSerialParam.StopBits = ONESTOPBIT;
+    dcbSerialParam.Parity = NOPARITY;
+
+    if (!SetCommState(h_Serial, &dcbSerialParam)) {
+      throw std::runtime_error("Error setting state");
+    }
+    COMMTIMEOUTS timeout = {0};
+    timeout.ReadIntervalTimeout = 60;
+    timeout.ReadTotalTimeoutConstant = 60;
+    timeout.ReadTotalTimeoutMultiplier = 15;
+    timeout.WriteTotalTimeoutConstant = 60;
+    timeout.WriteTotalTimeoutMultiplier = 8;
+    if (!SetCommTimeouts(h_Serial, &timeout)) {
+      throw std::runtime_error("Error setting timeouts");
+    }
+    // Write message
+    DWORD dwBytesWritten;
+    char dataOn[] = "1";
+    char dataOff[] = "0";
+    char dataLightOn[] = "6666";
+    if (!WriteFile(h_Serial, dataLightOn, sizeof(dataLightOn), &dwBytesWritten,
+                   NULL)) {
+      throw std::runtime_error("Error writing to serial port");
+    }
+    // read message
+    
+      char* dataRead = new char[1];
+      DWORD dwBytesRead;
+      if (!ReadFile(h_Serial, dataRead, sizeof(dataRead), &dwBytesRead, NULL)) {
+        delete[] dataRead;
+        throw std::runtime_error("Error reading from serial port");
+      }
+      std::cout << "Arduino detected." << std::endl;
   std::cout << "Choose the CSV file with the protocol. Each row should have "
                "five entries:\n"
             << "1. LED index (0-5)\n"
@@ -98,7 +169,6 @@ int main()
     logger = std::make_unique<Logger>(fpath_log);
     // Print log file path
     std::cout << "Starting log file " << fpath_log << std::endl;
-    // TODO: Remove Boost.log from project dependencies
     // TODO: add logging calls, check if info and error can be differentiated!
     logger->info("Logging started. Code version: " + std::string(VERSION_STR));
   } catch (const std::exception& e) {
@@ -320,9 +390,9 @@ int main()
       char* stepChars = step.stepToChars();
        logger->info("Step " + std::to_string(i_step) + ": " + stepChars);
       std::cout << stepChars << std::endl;
-      LED_PulseNTimes(instr, step.led_index, step.pulse_width_ms,
+       LED_PulseNTimesWithArduino(instr, step.led_index, step.pulse_width_ms,
                       step.time_between_pulses_ms, step.n_pulses,
-                      step.brightness);
+                      step.brightness, h_Serial);
       logger->info("Step " + std::to_string(i_step) + " done.");
       i_step++;
     }

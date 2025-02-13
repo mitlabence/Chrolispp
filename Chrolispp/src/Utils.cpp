@@ -11,8 +11,6 @@
 #include <chrono>
 #include <ctime>
 
-
-
 std::string BrowseCSV() {
   TCHAR szFile[MAX_PATH] = {0};
 

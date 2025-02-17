@@ -21,4 +21,6 @@ std::string generateLogFileName(const std::string& prefix);
 
 
 void showOpenCSVInstructions();
+
+void intToCharArray(int number, char* charArray, size_t bufferSize);
 #endif  // UTILS_HPP

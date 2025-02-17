@@ -160,3 +160,21 @@ void showOpenCSVInstructions() {
             << "4. number of pulses (integer)\n"
             << "5. brightness (integer, 0 - 1000, 1000 = 100.0 %)" << std::endl;
 }
+
+void intToCharArray(int number, char* charArray, size_t bufferSize) {
+    // Convert integer to string
+    std::string numberString = std::to_string(number);
+
+    // Ensure the buffer is large enough
+    if (numberString.length() < bufferSize) {
+        // Manually copy each character
+        for (size_t i = 0; i < numberString.length(); ++i) {
+            charArray[i] = numberString[i];
+        }
+        // Add the null terminator
+        charArray[numberString.length()] = '\0';
+    }
+    else {
+        std::cerr << "Buffer size is too small to hold the number" << std::endl;
+    }
+}

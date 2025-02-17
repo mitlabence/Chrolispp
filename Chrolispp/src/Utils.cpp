@@ -149,3 +149,14 @@ std::string getCurrentDateTime() {
 std::string generateLogFileName(const std::string& prefix) {
   return prefix + getCurrentDateTime() + ".log";
 }
+
+
+void showOpenCSVInstructions() {
+  std::cout << "Choose the CSV file with the protocol. Each row should have "
+               "five entries:\n"
+            << "1. LED index (0-5)\n"
+            << "2. pulse length (integer, ms)\n"
+            << "3. time between pulses (integer, ms)\n"
+            << "4. number of pulses (integer)\n"
+            << "5. brightness (integer, 0 - 1000, 1000 = 100.0 %)" << std::endl;
+}

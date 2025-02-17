@@ -19,4 +19,6 @@ std::string getCurrentDateTime();
 
 std::string generateLogFileName(const std::string& prefix);
 
+
+void showOpenCSVInstructions();
 #endif  // UTILS_HPP

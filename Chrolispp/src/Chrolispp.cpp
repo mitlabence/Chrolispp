@@ -40,105 +40,51 @@
  * Breaks: If the pulse length is 0, it means a break of time_between_pulses ms. In this case, a single break
  * of length <time between pulses> is executed, disregarding all other values.
  */
-
+#include "COMFunctions.hpp"
 #include <Windows.h>
 #include <stdio.h>
-#include <string.h>
+#include <string>
 #include "TL6WL.h"
 #include "LEDFunctions.hpp"
 #include "Utils.hpp"
 #include "ProtocolStep.hpp"
 #include <iostream>
 #include "Logger.hpp"
-
-#define VERSION_STR "1.4.0"  // Version, change with each release!
+#define VERSION_STR "1.4.1"  // Version, change with each release!
 #define LOGFNAME_PREFIX "stimlog_"  // beginning of log file name
 
-
-WCHAR* stringToWCHAR(const std::string& str) {
-  // Calculate the length of the wide character string
-  int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, NULL, 0);
-
-  // Allocate memory for the wide character string
-  WCHAR* wStr = new WCHAR[len];
-
-  // Perform the conversion
-  MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, wStr, len);
-
-  return wStr;
-}
-
+const char dataLightOn[] =
+    "6666";  // Arduino recognizes this and responds with "1"
+const char dataOn[] = "1";
+const char dataOff[] = "0";
 
 int main(){
-  bool arduinoFound = false;
-  bool skipArduino = false;
-  std::string comPort;
-  std::cout << "Enter Arduino COM port number:";
-  std::cin >> comPort;
-  
-  // append COM to beginning of comPort string
-  comPort = "COM" + comPort;
-  WCHAR* COM_PORT = stringToWCHAR(comPort);
-  HANDLE h_Serial;
-    h_Serial = CreateFile(COM_PORT, GENERIC_READ | GENERIC_WRITE, 0, 0,
-                                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    bool arduinoFound = false;
+    bool skipArduino = false;
+    std::string comPort;
+    std::cout << "Enter Arduino COM port number:";
+    std::cin >> comPort;
+    comPort = "COM" + comPort; // prepend COM to port number
+    WCHAR* COM_PORT;
+    COM_PORT = stringToWCHAR(comPort);
+    HANDLE h_Serial = INVALID_HANDLE_VALUE;
+    h_Serial = createSerialHandle(COM_PORT);
     if (h_Serial == INVALID_HANDLE_VALUE) {
-      if (GetLastError() == ERROR_FILE_NOT_FOUND) {
-        CloseHandle(h_Serial);
-        throw std::invalid_argument("Serial port does not exist");
-      }
-      CloseHandle(h_Serial);
-      throw std::runtime_error("Error opening serial port");
+        std::cerr << "Error opening serial port" << std::endl;
+        return -1;
     }
-    DCB dcbSerialParam = {0};
-    dcbSerialParam.DCBlength = sizeof(dcbSerialParam);
-    if (!GetCommState(h_Serial, &dcbSerialParam)) {
-      throw std::runtime_error("Error getting state");
-    }
-
-    dcbSerialParam.BaudRate = CBR_9600;
-    dcbSerialParam.ByteSize = 8;
-    dcbSerialParam.StopBits = ONESTOPBIT;
-    dcbSerialParam.Parity = NOPARITY;
-
-    if (!SetCommState(h_Serial, &dcbSerialParam)) {
-      throw std::runtime_error("Error setting state");
-    }
-    COMMTIMEOUTS timeout = {0};
-    timeout.ReadIntervalTimeout = 60;
-    timeout.ReadTotalTimeoutConstant = 60;
-    timeout.ReadTotalTimeoutMultiplier = 15;
-    timeout.WriteTotalTimeoutConstant = 60;
-    timeout.WriteTotalTimeoutMultiplier = 8;
-    if (!SetCommTimeouts(h_Serial, &timeout)) {
-      throw std::runtime_error("Error setting timeouts");
-    }
+    configureSerialPort(h_Serial);
+    configureTimeoutSettings(h_Serial);
     // Write message
-    DWORD dwBytesWritten;
-    char dataOn[] = "1";
-    char dataOff[] = "0";
-    char dataLightOn[] = "6666";
-    if (!WriteFile(h_Serial, dataLightOn, sizeof(dataLightOn), &dwBytesWritten,
-                   NULL)) {
-      throw std::runtime_error("Error writing to serial port");
-    }
+    writeMessage(h_Serial, dataLightOn, sizeof(dataLightOn));
     // read message
-    
-      char* dataRead = new char[1];
-      DWORD dwBytesRead;
-      if (!ReadFile(h_Serial, dataRead, sizeof(dataRead), &dwBytesRead, NULL)) {
-        delete[] dataRead;
-        throw std::runtime_error("Error reading from serial port");
-      }
-      std::cout << "Arduino detected." << std::endl;
-  std::cout << "Choose the CSV file with the protocol. Each row should have "
-               "five entries:\n"
-            << "1. LED index (0-5)\n"
-            << "2. pulse length (integer, ms)\n"
-            << "3. time between pulses (integer, ms)\n"
-            << "4. number of pulses (integer)\n"
-            << "5. brightness (integer, 0 - 1000, 1000 = 100.0 %)"
-      << std::endl;
+    char* msg = readMessage(h_Serial, 1);
+    std::cout << msg[0] << std::endl;
+    if (msg[0] == 1) {
+      arduinoFound = true;
+    }
+    std::cout << "Arduino detected." << std::endl;
+    showOpenCSVInstructions();
   std::string suggested_log_fname = generateLogFileName(LOGFNAME_PREFIX);
 
   std::string fpath = BrowseCSV();

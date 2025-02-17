@@ -13,7 +13,7 @@ void loop() {
             digitalWrite(OUTPIN, LOW);
             digitalWrite(LEDPIN, LOW);
         } else if (number == 6666){ // random defined number to check Arduino connection in Chrolispp
-          Serial.write('1');
+          Serial.write(1);
           digitalWrite(LEDPIN, HIGH);
           delay(100);
           digitalWrite(LEDPIN, LOW);

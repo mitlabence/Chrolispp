@@ -1,12 +1,14 @@
 
 #include "LEDFunctions.hpp" 
 #include "Logger.hpp"
+#include "Utils.hpp"
 #include <iostream>
 #include <exception>
 #include <string>
 
-const char dataLightOn[] = "1";
-const char dataLightOff[] = "0";
+const char dataLightOff[] = "1";
+const char dataLightOnMax[] = "256";
+const size_t bufferSize = 4; // for numbers 1-256, 3 characters + \0 (terminator) are needed
 
 void LED_PulseNTimes(ViSession instr, ViInt16 led_index, ViInt32 pulse_width_ms,
                             ViInt32 time_between_pulses_ms,
@@ -46,7 +48,17 @@ void LED_PulseNTimesWithArduino(ViSession instr, ViInt16 led_index, ViInt32 puls
   int led_brightnesses[6] = {0, 0, 0, 0, 0, 0};
   ViBoolean led_states[6] = {VI_FALSE, VI_FALSE, VI_FALSE,
                              VI_FALSE, VI_FALSE, VI_FALSE};
-  led_brightnesses[led_index] = brightness;
+  if (brightness > 1000) { // limit is 1000 = 100.0%
+      led_brightnesses[led_index] = 1000;
+  }
+  else {
+      led_brightnesses[led_index] = brightness;
+  }
+  // map int16 to 0-255 for arduino 8-bit resolution output
+  int brightness_remapped = static_cast<int>(brightness / 1000.0 * 255);
+  char message[bufferSize];
+  intToCharArray(brightness_remapped, message, bufferSize);
+
   led_states[led_index] = VI_TRUE;
   for (int i = 0; i < n_pulses; i++) {
     TL6WL_setLED_HeadBrightness(instr, led_brightnesses[0], led_brightnesses[1],
@@ -56,20 +68,21 @@ void LED_PulseNTimesWithArduino(ViSession instr, ViInt16 led_index, ViInt32 puls
                                  led_states[2], led_states[3], led_states[4],
                                  led_states[5]);
     // Try to write to arduino
-    if (!WriteFile(h_Serial, dataLightOn, sizeof(dataLightOn), &dwBytesWritten,
+    if (!WriteFile(h_Serial, &message, sizeof(message), &dwBytesWritten,
                    NULL)) {
       std::cout << "Error writing to serial port LED on" << std::endl;
     }
     Sleep(pulse_width_ms);
     TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE, VI_FALSE,
                                  VI_FALSE, VI_FALSE);
-    if (!WriteFile(h_Serial, dataLightOff, sizeof(dataLightOn), &dwBytesWritten,
+    if (!WriteFile(h_Serial, dataLightOff, sizeof(dataLightOff), &dwBytesWritten,
                    NULL)) {
       std::cout << "Error writing to serial port LED off" << std::endl;
     }
     Sleep(time_between_pulses_ms);
   }
 }
+
 
 std::string readBoxStatusWarnings(ViUInt32 boxStatus) {
   int bit0, bit1, bit2, bit3, bit4, bit5, bit6;

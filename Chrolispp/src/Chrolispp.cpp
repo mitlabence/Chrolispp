@@ -53,10 +53,7 @@
 #define VERSION_STR "1.4.1"  // Version, change with each release!
 #define LOGFNAME_PREFIX "stimlog_"  // beginning of log file name
 
-const char dataLightOn[] =
-    "6666";  // Arduino recognizes this and responds with "1"
-const char dataOn[] = "1";
-const char dataOff[] = "0";
+const int dataLightOn = 6666; // Command word: Arduino recognizes this and responds with "1"
 
 int main(){
     bool arduinoFound = false;
@@ -98,7 +95,9 @@ int main(){
       }
       // Write message
       try {
-        writeMessage(h_Serial, dataLightOn, sizeof(dataLightOn)); 
+		  char message[5];
+		  intToCharArray(dataLightOn, message, sizeof(message));
+        writeMessage(h_Serial, message, sizeof(message));
       } catch (const com_io_error& e) {
         std::cerr << "Error writing to serial port: " << e.what() << std::endl;
         return -1;

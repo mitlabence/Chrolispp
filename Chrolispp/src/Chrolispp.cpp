@@ -62,28 +62,64 @@ int main(){
     bool arduinoFound = false;
     bool skipArduino = false;
     std::string comPort;
-    std::cout << "Enter Arduino COM port number:";
-    std::cin >> comPort;
-    comPort = "COM" + comPort; // prepend COM to port number
-    WCHAR* COM_PORT;
-    COM_PORT = stringToWCHAR(comPort);
     HANDLE h_Serial = INVALID_HANDLE_VALUE;
-    h_Serial = createSerialHandle(COM_PORT);
-    if (h_Serial == INVALID_HANDLE_VALUE) {
+    while (!arduinoFound &&
+           !skipArduino) {  // break if arduino is found or user skips
+      std::cout
+          << "Enter Arduino COM port number (press enter to skip arduino):";
+      std::cin >> comPort;
+      comPort = "COM" + comPort;  // prepend COM to port number
+      WCHAR* COM_PORT;
+      COM_PORT = stringToWCHAR(comPort);
+      h_Serial = createSerialHandle(COM_PORT);
+      
+      if (h_Serial == INVALID_HANDLE_VALUE) {
         std::cerr << "Error opening serial port" << std::endl;
         return -1;
+      }
+      try {
+        configureSerialPort(h_Serial); 
+        configureTimeoutSettings(h_Serial);
+      } catch (const serial_port_config_error& e) {
+        std::cerr << "Error configuring serial port: " << e.what() << std::endl;
+        return -1;
+      } catch (const timeout_setting_error& e) {
+        std::cerr << "Error configuring timeout settings: " << e.what()
+                  << std::endl;
+        return -1;
+      } catch (const com_io_error& e) {
+        std::cerr << "Error writing to/reading from serial port: " << e.what()
+                  << std::endl;
+        return -1;
+      } 
+      catch (const std::exception& e) {
+        std::cerr << "Error configuring serial port: " << e.what() << std::endl;
+        return -1;
+      }
+      // Write message
+      try {
+        writeMessage(h_Serial, dataLightOn, sizeof(dataLightOn)); 
+      } catch (const com_io_error& e) {
+        std::cerr << "Error writing to serial port: " << e.what() << std::endl;
+        return -1;
+      }
+      // read message
+      try {
+        char* arduinoResponse = readMessage(h_Serial, 1);
+        if (arduinoResponse[0] == 1) {
+          arduinoFound = true;
+        }
+      } catch (const com_io_error& e) {
+        std::cerr << "Error reading from serial port: " << e.what()
+                  << std::endl;
+        return -1;
+      }
     }
-    configureSerialPort(h_Serial);
-    configureTimeoutSettings(h_Serial);
-    // Write message
-    writeMessage(h_Serial, dataLightOn, sizeof(dataLightOn));
-    // read message
-    char* msg = readMessage(h_Serial, 1);
-    std::cout << msg[0] << std::endl;
-    if (msg[0] == 1) {
-      arduinoFound = true;
+    if (arduinoFound) {
+      std::cout << "Arduino detected." << std::endl;   
+    } else {
+      std::cout << "Skipping Arduino connection." << std::endl;
     }
-    std::cout << "Arduino detected." << std::endl;
     showOpenCSVInstructions();
   std::string suggested_log_fname = generateLogFileName(LOGFNAME_PREFIX);
 
@@ -121,6 +157,8 @@ int main(){
     std::cerr << "Error: " << e.what() << std::endl;
     return 1;
   }
+  logger->info("Protocol file: " + fpath);
+  logger->info("Arduino used: " + arduinoFound ? "true" : "false");
   // Sanity checking the protocol steps
   char err_buffer[40];
   for (int i_step = 0; i_step < protocolSteps.size(); i_step++) {
@@ -279,53 +317,21 @@ int main(){
 
     ViUInt32 boxStatus;
     err = TL6WL_getBoxStatus(instr , &boxStatus);
-    int bit0 , bit1 , bit2 , bit3 , bit4 , bit5 , bit6;
-    if (bit0 = (boxStatus & 0x01))
-    {
-      logger->warning("Box is open.");
-        printf(" Box is open\n");
+    try {
+      std::string boxWarning = readBoxStatusWarnings(boxStatus); 
+      // if length of string > 0, there was a warning
+      if (!boxWarning.empty()) {
+        logger->warning(boxWarning);
+        std::cerr << boxWarning << std::endl;
+      } else {
+        logger->info("Box status OK.");
+      }
+    } catch (const std::exception& e) {
+      logger->error(e.what());
+      std::cerr << e.what() << std::endl;
+      return -1;
     }
-    else if (bit1 = (boxStatus & 0x02))
-    {
-      logger->warning("LLG not connected.");
-        printf(" LLG not connected\n");
-    }
-
-    else if (bit2 = (boxStatus & 0x04))
-    {
-      logger->warning("Interlock is open.");
-        printf(" Interlock is open\n");
-    }
-
-    else if (bit3 = (boxStatus & 0x08))
-    {
-      logger->warning("Using default adjustment.");
-        printf(" Using default adjustment\n");
-    }
-
-    else if (bit4 = (boxStatus & 0x10))
-    {
-      logger->warning("Box overheated.");
-        printf(" Box overheated\n");
-    }
-
-    else if (bit5 = (boxStatus & 0x20))
-    {
-      logger->warning("LED overheated.");
-        printf(" LED overheated\n");
-    }
-
-    else if (bit6 = (boxStatus & 0x40))
-    {
-      logger->warning("Box setup invalid.");
-        printf(" Box setup invalid\n");
-    }
-    // If LED or Box overheated, abort protocol
-    if (bit4 || bit5) {
-      logger->error("Box or LED overheated. Protocol aborted.");
-      printf("Box or LED overheated. Protocol aborted.\n");
-      return -4;
-    }
+    
     std::cout << "\n" << std::endl;
     int i_step = 0;
     size_t n_steps = protocolSteps.size();

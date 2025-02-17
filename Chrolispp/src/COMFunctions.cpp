@@ -3,12 +3,11 @@
 HANDLE createSerialHandle(const WCHAR* comPort) {
   HANDLE h_Serial = CreateFile(comPort, GENERIC_READ | GENERIC_WRITE, 0, 0,
                                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-
   if (h_Serial == INVALID_HANDLE_VALUE) {
     if (GetLastError() == ERROR_FILE_NOT_FOUND) {
-      throw std::invalid_argument("Serial port does not exist");
+      throw com_init_error("Serial port does not exist");
     }
-    throw std::runtime_error("Error opening serial port");
+    throw com_init_error("Error opening serial port");
   }
 
   return h_Serial;
@@ -27,7 +26,7 @@ void configureSerialPort(HANDLE h_Serial) {
   dcbSerialParam.Parity = NOPARITY;
 
   if (!SetCommState(h_Serial, &dcbSerialParam)) {
-    throw std::runtime_error("Error setting state");
+    throw serial_port_config_error("Error setting state");
   }
 }
 
@@ -52,14 +51,14 @@ void configureTimeoutSettings(HANDLE h_Serial) {
   timeout.WriteTotalTimeoutConstant = 60;
   timeout.WriteTotalTimeoutMultiplier = 8;
   if (!SetCommTimeouts(h_Serial, &timeout)) {
-    throw std::runtime_error("Error setting timeouts");
+    throw timeout_setting_error("Error setting timeouts");
   }
 }
 void writeMessage(HANDLE h_Serial, const char* data, size_t dataSize) {
     DWORD dwBytesWritten;
     if (!WriteFile(h_Serial, data, dataSize, &dwBytesWritten,
                     NULL)) {
-    throw std::runtime_error("Error writing to serial port");
+    throw com_io_error("Error writing to serial port");
     }
 }
 
@@ -68,7 +67,7 @@ char* readMessage(HANDLE h_Serial, size_t dataSize) {
   DWORD dwBytesRead;
   if (!ReadFile(h_Serial, data, dataSize, &dwBytesRead, NULL)) {
     delete[] data;
-    throw std::runtime_error("Error reading from serial port");
+    throw com_io_error("Error reading from serial port");
   }
   return data;
 }

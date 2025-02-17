@@ -2,6 +2,9 @@
 #include "LEDFunctions.hpp" 
 #include "Logger.hpp"
 #include <iostream>
+#include <exception>
+#include <string>
+
 const char dataLightOn[] = "1";
 const char dataLightOff[] = "0";
 
@@ -67,3 +70,37 @@ void LED_PulseNTimesWithArduino(ViSession instr, ViInt16 led_index, ViInt32 puls
     Sleep(time_between_pulses_ms);
   }
 }
+
+std::string readBoxStatusWarnings(ViUInt32 boxStatus) {
+  int bit0, bit1, bit2, bit3, bit4, bit5, bit6;
+  if (bit0 = (boxStatus & 0x01)) {
+    return "Box is open";
+  } else if (bit1 = (boxStatus & 0x02)) {
+    return "LLG not connected";
+  }
+  else if (bit2 = (boxStatus & 0x04)) {
+    return "Interlock is open";
+  }
+
+  else if (bit3 = (boxStatus & 0x08)) {
+    return "Using default adjustment";
+  }
+  else if (bit4 = (boxStatus & 0x10)) {
+    return "Box overheated";
+  }
+
+  else if (bit5 = (boxStatus & 0x20)) {
+    return "LED overheated";
+  }
+  else if (bit6 = (boxStatus & 0x40)) {
+    return "Box setup invalid";
+  }
+  // If LED or Box overheated, abort protocol
+  if (bit4 || bit5) {
+    throw led_machine_error("Box or LED overheated. Protocol aborted.");
+  }
+  // If everything all right, do not return any warnings
+  return "";
+}
+
+

@@ -53,11 +53,14 @@
 #define VERSION_STR "1.4.1"  // Version, change with each release!
 #define LOGFNAME_PREFIX "stimlog_"  // beginning of log file name
 
-const int dataLightOn = 6666; // Command word: Arduino recognizes this and responds with "1"
+#define CMD_LIGHT_ON 6666 // Command word: Arduino recognizes this and responds with "1"
 
 int main(){
     bool arduinoFound = false;
+    char *firmwareVersion = new char[1]; // 1 byte, can hold -127 to 127?
+    firmwareVersion[0] = static_cast<char>(-1);
     bool skipArduino = false;
+	int dac_resolution_bits = 0; // if stays 0, no communication with Arduino will happen. If 1, digital output, if >1, DAC with specified resolution.
     std::string comPort;
     HANDLE h_Serial = INVALID_HANDLE_VALUE;
     while (!arduinoFound &&
@@ -96,18 +99,31 @@ int main(){
       // Write message
       try {
 		  char message[5];
-		  intToCharArray(dataLightOn, message, sizeof(message));
+		  intToCharArray(CMD_LIGHT_ON, message, sizeof(message));
         writeMessage(h_Serial, message, sizeof(message));
       } catch (const com_io_error& e) {
         std::cerr << "Error writing to serial port: " << e.what() << std::endl;
         return -1;
       }
-      // read message
+	  // read message, set up firmware-specific behavior
       try {
-        char* arduinoResponse = readMessage(h_Serial, 1);
-        if (arduinoResponse[0] == 1) {
+          firmwareVersion = readMessage(h_Serial, 1);
+        if (firmwareVersion[0] == 1) { // only digital signals
           arduinoFound = true;
+		  dac_resolution_bits = 1;
         }
+		else if (firmwareVersion[0] == 2) { // Arduino Uno built-in PWM, 8-bit resolution
+			arduinoFound = true;
+			dac_resolution_bits = 8;
+		}
+		else if (firmwareVersion[0] == 3) { // MCP4725 DAC, 12-bit resolution
+			arduinoFound = true;
+			dac_resolution_bits = 12;
+        }
+		else {
+			std::cerr << "Invalid firmware version from Arduino: " << firmwareVersion[0] << std::endl;
+			return -1;
+		}
       } catch (const com_io_error& e) {
         std::cerr << "Error reading from serial port: " << e.what()
                   << std::endl;
@@ -115,8 +131,9 @@ int main(){
       }
     }
     if (arduinoFound) {
-      std::cout << "Arduino detected." << std::endl;   
-    } else {
+        std::cout << "Arduino detected with firmware ID: " << std::to_string(firmwareVersion[0]) << std::endl;
+    }
+    else{
       std::cout << "Skipping Arduino connection." << std::endl;
     }
     showOpenCSVInstructions();
@@ -158,6 +175,9 @@ int main(){
   }
   logger->info("Protocol file: " + fpath);
   logger->info("Arduino used: " + arduinoFound ? "true" : "false");
+  if (arduinoFound) {
+	  logger->info("Arduino firmware version: " + std::to_string(firmwareVersion[0]));
+  }
   // Sanity checking the protocol steps
   char err_buffer[40];
   for (int i_step = 0; i_step < protocolSteps.size(); i_step++) {
@@ -343,7 +363,7 @@ int main(){
       std::cout << stepChars << std::endl;
        LED_PulseNTimesWithArduino(instr, step.led_index, step.pulse_width_ms,
                       step.time_between_pulses_ms, step.n_pulses,
-                      step.brightness, h_Serial);
+                      step.brightness, h_Serial, dac_resolution_bits);
       logger->info("Step " + std::to_string(i_step) + " done.");
       i_step++;
     }
@@ -363,6 +383,7 @@ int main(){
       std::cout << '\n' << "Press q then enter to quit...";
     }
     logger->info("Application closed.");
+    delete[] firmwareVersion;
     return 0;
 }
 

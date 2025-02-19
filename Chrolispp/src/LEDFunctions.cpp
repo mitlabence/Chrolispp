@@ -8,7 +8,6 @@
 
 const char dataLightOff[] = "1";
 const char dataLightOnMax[] = "256";
-const size_t bufferSize = 4; // for numbers 1-256, 3 characters + \0 (terminator) are needed
 
 void LED_PulseNTimes(ViSession instr, ViInt16 led_index, ViInt32 pulse_width_ms,
                             ViInt32 time_between_pulses_ms,
@@ -39,11 +38,20 @@ void LED_PulseNTimes(ViSession instr, ViInt16 led_index, ViInt32 pulse_width_ms,
 
 void LED_PulseNTimesWithArduino(ViSession instr, ViInt16 led_index, ViInt32 pulse_width_ms,
                      ViInt32 time_between_pulses_ms, ViInt32 n_pulses,
-                     ViInt16 brightness, HANDLE h_Serial) {
+                     ViInt16 brightness, HANDLE h_Serial, int dac_resolution_bits) {
+    /*
+    dac_resolution: if set to 0, no communication with an Arduino board is attempted.
+    Otherwise, brightness will be remapped to fit in the specified resolution (dac_resolution=8 means 8-bit etc.).
+    If set to 1, 
+    */
   if (pulse_width_ms == 0) {
     Sleep(time_between_pulses_ms);
     return;
   }
+  if (dac_resolution_bits > 16) { // 17-bit resolution would mean a max number with 6 digits (buffer size would be 7). Draw a line of support here.
+      throw std::out_of_range("DAC resolution too high: " + std::to_string(dac_resolution_bits) + ". Maximum supported resolution is 16-bit.");
+  }
+  const size_t bufferSize = 6; // buffer size for converting the digital value to a string
   DWORD dwBytesWritten;
   int led_brightnesses[6] = {0, 0, 0, 0, 0, 0};
   ViBoolean led_states[6] = {VI_FALSE, VI_FALSE, VI_FALSE,
@@ -55,9 +63,27 @@ void LED_PulseNTimesWithArduino(ViSession instr, ViInt16 led_index, ViInt32 puls
       led_brightnesses[led_index] = brightness;
   }
   // map int16 to 0-255 for arduino 8-bit resolution output
-  int brightness_remapped = static_cast<int>(brightness / 1000.0 * 255);
+  int brightness_remapped = -1; // if stays negative, do not send.
+  if (dac_resolution_bits > 2) {
+	  int dac_resolution = pow(2, dac_resolution_bits) - 1;
+      brightness_remapped = static_cast<int>(brightness / 1000.0 * dac_resolution) + 1; // add 1 because range starts from 1 in Arduino (0 is reserved for timeout in Serial.parseInt())
+  }
+  else if (dac_resolution_bits == 1) {
+      // digital output, but cannot send 0 or 1 for "on" signal. Send 2 instead.
+      if (brightness > 0) {
+          brightness_remapped = 2;
+      }
+      else {
+		  brightness_remapped = 1; // 1 is the off signal for Arduino (0 is reserved for timeout).
+      }
+  }
   char message[bufferSize];
-  intToCharArray(brightness_remapped, message, bufferSize);
+  try {
+      intToCharArray(brightness_remapped, message, bufferSize);
+  }
+  catch (const std::exception& e) {
+	  std::cerr << e.what() << std::endl;
+  }
 
   led_states[led_index] = VI_TRUE;
   for (int i = 0; i < n_pulses; i++) {
@@ -68,16 +94,20 @@ void LED_PulseNTimesWithArduino(ViSession instr, ViInt16 led_index, ViInt32 puls
                                  led_states[2], led_states[3], led_states[4],
                                  led_states[5]);
     // Try to write to arduino
-    if (!WriteFile(h_Serial, &message, sizeof(message), &dwBytesWritten,
-                   NULL)) {
-      std::cout << "Error writing to serial port LED on" << std::endl;
+    if (brightness_remapped >= 0) {
+        if (!WriteFile(h_Serial, &message, sizeof(message), &dwBytesWritten,
+            NULL)) {
+            std::cout << "Error writing to serial port LED on" << std::endl;
+        }
     }
     Sleep(pulse_width_ms);
     TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE, VI_FALSE,
                                  VI_FALSE, VI_FALSE);
-    if (!WriteFile(h_Serial, dataLightOff, sizeof(dataLightOff), &dwBytesWritten,
-                   NULL)) {
-      std::cout << "Error writing to serial port LED off" << std::endl;
+    if (brightness_remapped >= 0) {
+        if (!WriteFile(h_Serial, dataLightOff, sizeof(dataLightOff), &dwBytesWritten,
+            NULL)) {
+            std::cout << "Error writing to serial port LED off" << std::endl;
+        }
     }
     Sleep(time_between_pulses_ms);
   }

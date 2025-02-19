@@ -66,8 +66,12 @@ int main(){
     while (!arduinoFound &&
            !skipArduino) {  // break if arduino is found or user skips
       std::cout
-          << "Enter Arduino COM port number (press enter to skip arduino):";
+          << "Enter Arduino COM port number (enter n to skip arduino):";
       std::cin >> comPort;
+      if (comPort == "n") {
+          skipArduino = true;
+          break;
+      }
       comPort = "COM" + comPort;  // prepend COM to port number
       WCHAR* COM_PORT;
       COM_PORT = stringToWCHAR(comPort);
@@ -121,7 +125,7 @@ int main(){
 			dac_resolution_bits = 12;
         }
 		else {
-			std::cerr << "Invalid firmware version from Arduino: " << firmwareVersion[0] << std::endl;
+			std::cerr << "Invalid firmware version from Arduino: " << std::to_string(firmwareVersion[0]) << std::endl;
 			return -1;
 		}
       } catch (const com_io_error& e) {
@@ -174,7 +178,8 @@ int main(){
     return 1;
   }
   logger->info("Protocol file: " + fpath);
-  logger->info("Arduino used: " + arduinoFound ? "true" : "false");
+  std::string arduino_found_string = arduinoFound ? "true" : "false";
+  logger->info("Arduino used: " + arduino_found_string);
   if (arduinoFound) {
 	  logger->info("Arduino firmware version: " + std::to_string(firmwareVersion[0]));
   }

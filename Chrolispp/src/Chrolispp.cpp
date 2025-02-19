@@ -56,6 +56,7 @@
 #define CMD_LIGHT_ON 6666 // Command word: Arduino recognizes this and responds with "1"
 
 int main(){
+	std::cout << "Chrolis++ version " << VERSION_STR << std::endl;
     bool arduinoFound = false;
     char *firmwareVersion = new char[1]; // 1 byte, can hold -127 to 127?
     firmwareVersion[0] = static_cast<char>(-1);

@@ -12,7 +12,7 @@ void LED_PulseNTimesWithArduino(ViSession instr, ViInt16 led_index,
                                 ViInt32 pulse_width_ms,
                                 ViInt32 time_between_pulses_ms,
                                 ViInt32 n_pulses, ViInt16 brightness,
-                                HANDLE h_Serial);
+                                HANDLE h_Serial, int dac_resolution_bits);
 std::string readBoxStatusWarnings(ViUInt32 boxStatus);
 class led_machine_error : public std::exception {
  public:

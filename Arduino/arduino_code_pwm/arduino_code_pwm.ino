@@ -6,7 +6,7 @@ int analogPin = 6;
 int receivedVal = 0; // 1 - 256 to set levels 0-255
 
 void setup() {
-  Serial.begin(9600);   // Start serial communication at 9600 baud rate
+  Serial.begin(9600);   // Make sure baud rate matches with that of Chrolis++
   pinMode(analogPin, OUTPUT); // set PWM pin (pin 6: 980 Hz) as output. Range 0-255 = 0-5V?
 }
 

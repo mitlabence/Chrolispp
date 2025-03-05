@@ -50,10 +50,43 @@
 #include "ProtocolStep.hpp"
 #include <iostream>
 #include "Logger.hpp"
-#define VERSION_STR "1.4.1"  // Version, change with each release!
+#include <thread>
+#define VERSION_STR "1.4.2"  // Version, change with each release!
 #define LOGFNAME_PREFIX "stimlog_"  // beginning of log file name
 
-#define CMD_LIGHT_ON 6666 // Command word: Arduino recognizes this and responds with "1"
+#define CMD_COM_CHECK 6666 // Command word: Arduino recognizes this and responds with "1"
+#define CMD_LIGHT_OFF 1  // Command word: set Arduino output to 0
+
+std::atomic<bool> running(true);
+
+void cleanup(ViSession &instr, HANDLE &h_Serial, Logger &logger) {
+  std::cout << "Cancelling...";
+  //set all LEDs to 0, close LED connection and logger.
+  std::cout << "Turning off LEDs and closing connection." << std::endl;
+  TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE, VI_FALSE,
+                                 VI_FALSE, VI_FALSE);
+    TL6WL_close(instr);
+  // Send 1 to Arduino to turn off pulse
+  if (h_Serial != INVALID_HANDLE_VALUE) {
+    char message[5];
+    intToCharArray(CMD_LIGHT_OFF, message, sizeof(message));
+    writeMessage(h_Serial, message, sizeof(message));
+    CloseHandle(h_Serial);
+  }
+  
+  logger.info("LEDs turned off, connection closed.");
+}
+
+void listenForEscape(ViSession& instr, HANDLE &h_Serial, Logger& logger) {
+  while (running) {
+    if (GetAsyncKeyState(VK_ESCAPE)) {
+      cleanup(instr, h_Serial, logger);
+      running = false;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+}
+
 
 int main(){
 	std::cout << "Chrolis++ version " << VERSION_STR << std::endl;
@@ -104,7 +137,7 @@ int main(){
       // Write message
       try {
 		  char message[5];
-		  intToCharArray(CMD_LIGHT_ON, message, sizeof(message));
+		  intToCharArray(CMD_COM_CHECK, message, sizeof(message));
         writeMessage(h_Serial, message, sizeof(message));
       } catch (const com_io_error& e) {
         std::cerr << "Error writing to serial port: " << e.what() << std::endl;

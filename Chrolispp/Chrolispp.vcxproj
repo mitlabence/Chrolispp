@@ -19,7 +19,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\COMFunctions.hpp" />
     <ClCompile Include="src\Chrolispp.cpp" />
+    <ClCompile Include="src\COMFunctions.cpp" />
     <ClCompile Include="src\LEDFunctions.cpp" />
     <ClCompile Include="src\Logger.cpp" />
     <ClCompile Include="src\ProtocolStep.cpp" />

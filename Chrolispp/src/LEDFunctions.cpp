@@ -6,8 +6,7 @@
 #include <exception>
 #include <string>
 
-const char dataLightOff[] = "1";
-const char dataLightOnMax[] = "256";
+const char DATA_LIGHT_OFF[] = "1";
 
 void LED_PulseNTimes(ViSession instr, ViInt16 led_index, ViInt32 pulse_width_ms,
                             ViInt32 time_between_pulses_ms,
@@ -104,7 +103,7 @@ void LED_PulseNTimesWithArduino(ViSession instr, ViInt16 led_index, ViInt32 puls
     TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE, VI_FALSE,
                                  VI_FALSE, VI_FALSE);
     if (brightness_remapped >= 0) {
-        if (!WriteFile(h_Serial, dataLightOff, sizeof(dataLightOff), &dwBytesWritten,
+        if (!WriteFile(h_Serial, DATA_LIGHT_OFF, sizeof(DATA_LIGHT_OFF), &dwBytesWritten,
             NULL)) {
             std::cout << "Error writing to serial port LED off" << std::endl;
         }

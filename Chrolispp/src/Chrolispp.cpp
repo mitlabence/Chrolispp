@@ -51,15 +51,24 @@
 #include <iostream>
 #include "Logger.hpp"
 #include <thread>
+#include <csignal>
+
 #define VERSION_STR "1.4.2"  // Version, change with each release!
 #define LOGFNAME_PREFIX "stimlog_"  // beginning of log file name
 
 #define CMD_COM_CHECK 6666 // Command word: Arduino recognizes this and responds with "1"
 #define CMD_LIGHT_OFF 1  // Command word: set Arduino output to 0
 
-std::atomic<bool> running(true);
+struct CleanupContext {
+    ViSession instr;
+	HANDLE h_Serial;
+    std::unique_ptr<Logger> *logger;
+};
 
-void cleanup(ViSession &instr, HANDLE &h_Serial, Logger &logger) {
+CleanupContext cleanupContext;
+
+
+void cleanup(ViSession instr, HANDLE h_Serial, std::unique_ptr<Logger>* logger) {
   std::cout << "Cancelling...";
   //set all LEDs to 0, close LED connection and logger.
   std::cout << "Turning off LEDs and closing connection." << std::endl;
@@ -73,18 +82,17 @@ void cleanup(ViSession &instr, HANDLE &h_Serial, Logger &logger) {
     writeMessage(h_Serial, message, sizeof(message));
     CloseHandle(h_Serial);
   }
-  
-  logger.info("LEDs turned off, connection closed.");
+  //TODO: add pointer check (if (ptr && ptr->get())
+  Logger* logger_ptr = logger->get();
+  logger_ptr->info("LEDs turned off, connection closed.");
 }
 
-void listenForEscape(ViSession& instr, HANDLE &h_Serial, Logger& logger) {
-  while (running) {
-    if (GetAsyncKeyState(VK_ESCAPE)) {
-      cleanup(instr, h_Serial, logger);
-      running = false;
+void signalHandler(int signal) {
+    if (signal == SIGINT) {
+        cleanup(cleanupContext.instr, cleanupContext.h_Serial, cleanupContext.logger);
+        std::cout << "Interrupted." << std::endl;
+        std::exit(0);
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  }
 }
 
 
@@ -391,6 +399,16 @@ int main(){
     }
     
     std::cout << "\n" << std::endl;
+	// Start thread to listen for escape key
+	cleanupContext.h_Serial = h_Serial;
+	cleanupContext.instr = instr;
+	cleanupContext.logger = &logger;
+
+    // Update the assignment to match the new type
+    std::signal(SIGINT, signalHandler);
+    std::cout << "Press Ctrl+C to cancel the protocol." << std::endl;
+
+
     int i_step = 0;
     size_t n_steps = protocolSteps.size();
     logger->info("Starting protocol with " + std::to_string(n_steps) +

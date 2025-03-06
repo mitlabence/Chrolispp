@@ -70,6 +70,8 @@ CleanupContext cleanupContext;
 
 void cleanup(ViSession instr, HANDLE h_Serial, std::unique_ptr<Logger>* logger) {
   std::cout << "Cancelling...";
+  Logger* logger_ptr = logger->get();
+  logger_ptr->info("Interrupted...");
   //set all LEDs to 0, close LED connection and logger.
   std::cout << "Turning off LEDs and closing connection." << std::endl;
   TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE, VI_FALSE,
@@ -83,7 +85,7 @@ void cleanup(ViSession instr, HANDLE h_Serial, std::unique_ptr<Logger>* logger) 
     CloseHandle(h_Serial);
   }
   //TODO: add pointer check (if (ptr && ptr->get())
-  Logger* logger_ptr = logger->get();
+
   logger_ptr->info("LEDs turned off, connection closed.");
 }
 

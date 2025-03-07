@@ -8,7 +8,7 @@ Adafruit_MCP4725 dac;
 uint16_t val = 0;
 
 void setup() {
-    Serial.begin(9600);   // Make sure baud rate matches with that of Chrolis++
+    Serial.begin(19200);   // Make sure baud rate matches with that of Chrolis++
     dac.begin(0x60);
 }
 

@@ -20,7 +20,7 @@ void configureSerialPort(HANDLE h_Serial) {
     throw std::runtime_error("Error getting state");
   }
 
-  dcbSerialParam.BaudRate = CBR_19200;
+  dcbSerialParam.BaudRate = CBR_9600;
   dcbSerialParam.ByteSize = 8;
   dcbSerialParam.StopBits = ONESTOPBIT;
   dcbSerialParam.Parity = NOPARITY;

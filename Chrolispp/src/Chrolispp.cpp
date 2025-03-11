@@ -53,7 +53,7 @@
 #include <thread>
 #include <csignal>
 
-#define VERSION_STR "1.4.2"  // Version, change with each release!
+#define VERSION_STR "1.4.3"  // Version, change with each release!
 #define LOGFNAME_PREFIX "stimlog_"  // beginning of log file name
 
 #define CMD_COM_CHECK 6666 // Command word: Arduino recognizes this and responds with "1"
@@ -75,7 +75,7 @@ void cleanup(ViSession instr, HANDLE h_Serial, std::unique_ptr<Logger>* logger) 
   //set all LEDs to 0, close LED connection and logger.
   std::cout << "Turning off LEDs and closing connection." << std::endl;
   TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE, VI_FALSE,
-                                 VI_FALSE, VI_FALSE);
+                                 VI_FALSE, VI_FALSE); 
     TL6WL_close(instr);
   // Send 1 to Arduino to turn off pulse
   if (h_Serial != INVALID_HANDLE_VALUE) {

@@ -45,6 +45,7 @@
  * In this case, a single break of length <time between pulses> is executed,
  * disregarding all other values.
  */
+// TODO: show error message if wrong arduino COM Port specified
 #include <Windows.h>
 #include <stdio.h>
 
@@ -215,7 +216,7 @@ int main() {
       return -1;  // Quit if the user does not want to continue
     }
   }
-  std::string modeString = std::string(keyPressMode ? "key-press" : "protocol");
+  std::string modeString = keyPressMode ? "key-press" : "protocol";
   std::vector<ProtocolStep> protocolSteps;
   if (!keyPressMode) {
     if (!isCSVFile(fpath)) {
@@ -442,14 +443,19 @@ int main() {
     std::cout << "Press Ctrl+C to quit the key-press mode." << std::endl;
     // TODO: add listener to one button, say, S, to stim for 4 s with LED 0.
     //      If it works, add control as well.
+    // TODO: pressing S multiple times creates a queue of multiple stims! Might need to avoid this somehow (accidental pressing twice).
+    //  Quit after one stim?
     while (true) {
       if (_kbhit()) {        // Check if a key was pressed
         char ch = _getch();  // Read the key (without Enter)
         if (ch == 'S' || ch == 's') {
+		    std::cout << "LED 0: Stimulating for 4 seconds." << std::endl;
+			logger->info("LED 0: Stimulating for 4 seconds.");
           LED_PulseNTimesWithArduino(instr, 0, 4000,
                                      0, 1,
-                                     1000, h_Serial,
+                                     100, h_Serial,
                                      dac_resolution_bits);
+		  logger->info("LED 0: Done.");
         } else if (ch == 'Q' || ch == 'q') { 
           // TODO: test this quit method. If works, then sigint can be limited to protocol mode?
             // Also, if this works, then q + enter in other cases can be replaced.

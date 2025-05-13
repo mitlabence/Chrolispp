@@ -47,13 +47,13 @@
  */
 // TODO: show error message if wrong arduino COM Port specified
 #include <Windows.h>
+#include <conio.h>  // for key-press mode
 #include <stdio.h>
 
 #include <csignal>
 #include <iostream>
 #include <string>
 #include <thread>
-#include <conio.h> // for key-press mode
 
 #include "COMFunctions.hpp"
 #include "LEDFunctions.hpp"
@@ -62,12 +62,12 @@
 #include "TL6WL.h"
 #include "Utils.hpp"
 
-#define VERSION_STR "1.4.4"         // Version, change with each release!
-#define LOGFNAME_PREFIX "stimlog_"  // beginning of log file name
+constexpr auto VERSION_STR = "1.4.4";  // Version, change with each release!;
+constexpr auto LOGFNAME_PREFIX = "stimlog_";  // beginning of log file name;
 
-#define CMD_COM_CHECK \
-  6666  // Command word: Arduino recognizes this and responds with "1"
-#define CMD_LIGHT_OFF 1  // Command word: set Arduino output to 0
+constexpr auto CMD_COM_CHECK =
+    6666;  // Command word: Arduino recognizes this and responds with "1";
+constexpr auto CMD_LIGHT_OFF = 1;  // Command word: set Arduino output to 0
 
 struct CleanupContext {
   ViSession instr;
@@ -77,7 +77,7 @@ struct CleanupContext {
 
 CleanupContext cleanupContext;
 
-void cleanup(ViSession instr, HANDLE h_Serial,
+static void cleanup(ViSession instr, HANDLE h_Serial,
              std::unique_ptr<Logger>* logger) {
   std::cout << "Cancelling...";
   Logger* logger_ptr = logger->get();
@@ -99,7 +99,7 @@ void cleanup(ViSession instr, HANDLE h_Serial,
   logger_ptr->info("LEDs turned off, connection closed.");
 }
 
-void signalHandler(int signal) {
+static void signalHandler(int signal) {
   if (signal == SIGINT) {
     cleanup(cleanupContext.instr, cleanupContext.h_Serial,
             cleanupContext.logger);
@@ -443,27 +443,27 @@ int main() {
     std::cout << "Press Ctrl+C to quit the key-press mode." << std::endl;
     // TODO: add listener to one button, say, S, to stim for 4 s with LED 0.
     //      If it works, add control as well.
-    // TODO: pressing S multiple times creates a queue of multiple stims! Might need to avoid this somehow (accidental pressing twice).
+    // TODO: pressing S multiple times creates a queue of multiple stims! Might
+    // need to avoid this somehow (accidental pressing twice).
     //  Quit after one stim?
     while (true) {
       if (_kbhit()) {        // Check if a key was pressed
         char ch = _getch();  // Read the key (without Enter)
         if (ch == 'S' || ch == 's') {
-		    std::cout << "LED 0: Stimulating for 4 seconds." << std::endl;
-			logger->info("LED 0: Stimulating for 4 seconds.");
-          LED_PulseNTimesWithArduino(instr, 0, 4000,
-                                     0, 1,
-                                     100, h_Serial,
+          std::cout << "LED 0: Stimulating for 4 seconds." << std::endl;
+          logger->info("LED 0: Stimulating for 4 seconds.");
+          LED_PulseNTimesWithArduino(instr, 0, 4000, 0, 1, 100, h_Serial,
                                      dac_resolution_bits);
-		  logger->info("LED 0: Done.");
-        } else if (ch == 'Q' || ch == 'q') { 
-          // TODO: test this quit method. If works, then sigint can be limited to protocol mode?
-            // Also, if this works, then q + enter in other cases can be replaced.
+          logger->info("LED 0: Done.");
+        } else if (ch == 'Q' || ch == 'q') {
+          // TODO: test this quit method. If works, then sigint can be limited
+          // to protocol mode? Also, if this works, then q + enter in other
+          // cases can be replaced.
           break;  // Exit loop
         }
       }
     }
-  } else { // Run protocol steps
+  } else {  // Run protocol steps
     std::cout << "Press Ctrl+C to cancel the protocol." << std::endl;
     int i_step = 0;
     size_t n_steps = protocolSteps.size();
@@ -482,8 +482,6 @@ int main() {
       i_step++;
     }
   }
-
-  
 
   logger->info("Closing device.");
   printf("\nClose Device\n");

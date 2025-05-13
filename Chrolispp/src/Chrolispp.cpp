@@ -89,7 +89,7 @@ static void cleanup(ViSession instr, HANDLE h_Serial,
   TL6WL_close(instr);
   // Send 1 to Arduino to turn off pulse
   if (h_Serial != INVALID_HANDLE_VALUE) {
-    char message[5];
+    char message[5] = {0}; // initialize to 0s
     intToCharArray(CMD_LIGHT_OFF, message, sizeof(message));
     writeMessage(h_Serial, message, sizeof(message));
     CloseHandle(h_Serial);

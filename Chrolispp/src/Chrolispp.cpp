@@ -62,12 +62,14 @@
 #include "TL6WL.h"
 #include "Utils.hpp"
 
-constexpr auto VERSION_STR = "1.4.4";  // Version, change with each release!;
+constexpr auto VERSION_STR = "2.0.0";  // Version, change with each release!;
 constexpr auto LOGFNAME_PREFIX = "stimlog_";  // beginning of log file name;
 
 constexpr auto CMD_COM_CHECK =
     6666;  // Command word: Arduino recognizes this and responds with "1";
 constexpr auto CMD_LIGHT_OFF = 1;  // Command word: set Arduino output to 0
+constexpr bool USE_BOB =
+    true;  // whether to use the breakout board for timing signals
 
 struct CleanupContext {
   ViSession instr;
@@ -77,26 +79,27 @@ struct CleanupContext {
 
 CleanupContext cleanupContext;
 
-static void cleanup(ViSession instr, HANDLE h_Serial,
-             std::unique_ptr<Logger>* logger) {
-  std::cout << "Cancelling...";
+static ViStatus cleanup(ViSession instr, HANDLE h_Serial,
+                        std::unique_ptr<Logger>* logger) {
+  ViStatus err;
   Logger* logger_ptr = logger->get();
-  logger_ptr->info("Interrupted...");
+  logger_ptr->info("cleanup()");
+  std::cout << "Cleaning up...";
   // set all LEDs to 0, close LED connection and logger.
   std::cout << "Turning off LEDs and closing connection." << std::endl;
   TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE, VI_FALSE,
                                VI_FALSE, VI_FALSE);
-  TL6WL_close(instr);
+  err = TL6WL_close(instr);
   // Send 1 to Arduino to turn off pulse
   if (h_Serial != INVALID_HANDLE_VALUE) {
-    char message[5] = {0}; // initialize to 0s
+    char message[5] = {0};  // initialize to 0s
     intToCharArray(CMD_LIGHT_OFF, message, sizeof(message));
     writeMessage(h_Serial, message, sizeof(message));
     CloseHandle(h_Serial);
   }
   // TODO: add pointer check (if (ptr && ptr->get())
-
   logger_ptr->info("LEDs turned off, connection closed.");
+  return err;
 }
 
 static void signalHandler(int signal) {
@@ -268,6 +271,7 @@ int main() {
           "protocolSteps variable.");
     }
     for (int i_step = 0; i_step < protocolSteps.size(); i_step++) {
+      std::cout << "Step " << i_step + 1 << ":\n";
       ProtocolStep& step = protocolSteps[i_step];
       // Check if the LED index is in the correct range
       if (step.led_index < 0 || step.led_index > 5) {
@@ -304,14 +308,15 @@ int main() {
       }
       // Check if the number of pulses is positive and not too large (< 10000)
       if (step.n_pulses <= 0 || step.n_pulses > 10000) {
-        sprintf_s(err_buffer, "Invalid number of pulses in step %d",
-                  i_step + 1);
+        std::cout << std::to_string(step.n_pulses) << std::endl;
+        sprintf_s(err_buffer, "Invalid number of pulses in step %d: %d",
+                  i_step + 1, step.n_pulses);
         logger->error(err_buffer);
         std::cerr << err_buffer << std::endl;
         return -1;
       }
+      LED_ValidateBrightness(step.brightness);
       // Print step for user to review
-      std::cout << "Step " << i_step + 1 << ":\n";
       step.printStep();
     }
   }
@@ -446,14 +451,71 @@ int main() {
     // TODO: pressing S multiple times creates a queue of multiple stims! Might
     // need to avoid this somehow (accidental pressing twice).
     //  Quit after one stim?
+    // define sequence for LED2 and LED4
+
+    // always start with stopping an eventually running timing unit (TU)
+
+    err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, false);
+
+    // for a new sequence always clear the current sequence of the timing unit
+    // (TU)
+
+    err = TL6WL_TU_ResetSequence(instr);
+
+    ViUInt8 sigNr1 = 2;               // LED2
+    ViBoolean activeLow1 = 0;         // this is positive logic (not active low)
+    ViUInt32 startDelayus1 = 0;       // this is start delay of 0ms
+    ViUInt32 activeTimeus1 = 500000;  // this is half a second
+    ViUInt32 inactiveTimeus1 = 1000000;  // this is 1s
+    ViUInt32 repetitionCount1 = 3;       // number of repetitions
+
+    ViUInt8 sigNr2 = 4;               // LED4
+    ViBoolean activeLow2 = 0;         // this is positive logic (not active low)
+    ViUInt32 startDelayus2 = 500000;  // this is start delay of half a second
+    ViUInt32 activeTimeus2 = 500000;  // this is half a second
+    ViUInt32 inactiveTimeus2 = 1000000;  // this is 1s
+    ViUInt32 repetitionCount2 = 3;       // number of repetitions
+    std::cout << "Setting up demo run" << std::endl;
+    TL6WL_setLED_HeadBrightness(instr, 100, 100, 100, 100, 100, 100);
+
+    TL6WL_TU_AddGeneratedSelfRunningSignal(instr, sigNr1, activeLow1,
+                                           startDelayus1, activeTimeus1,
+                                           inactiveTimeus1, repetitionCount1);
+    TL6WL_TU_AddGeneratedSelfRunningSignal(instr, 7, activeLow1, startDelayus1,
+                                           activeTimeus1, inactiveTimeus1,
+                                           repetitionCount1);
+    TL6WL_TU_AddGeneratedSelfRunningSignal(instr, sigNr2, activeLow2,
+                                           startDelayus2, activeTimeus2,
+                                           inactiveTimeus2, repetitionCount2);
+
+    // start the sequence (this is the software trigger)
+    std::cout << "Set up power states" << std::endl;
+    TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_TRUE, VI_FALSE, VI_TRUE,
+                                 VI_FALSE, VI_FALSE);
+
+    err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, true);
+    if (VI_SUCCESS != err) {
+      printf(
+          " TL6WL_TU_StartStopGeneratorOutput_TU  :\n    Error Code = "
+          "%#.8lX\n",
+          err);
+      printf("\nSample Terminated\n");
+    } else {
+      printf("Success");
+    }
+    Sleep(5000);  // TODO: one has to wait a proper time! Or set up a listener
+                  // to the generator output?
+    std::cout << "Done" << std::endl;
     while (true) {
       if (_kbhit()) {        // Check if a key was pressed
         char ch = _getch();  // Read the key (without Enter)
         if (ch == 'S' || ch == 's') {
           std::cout << "LED 0: Stimulating for 4 seconds." << std::endl;
           logger->info("LED 0: Stimulating for 4 seconds.");
-          LED_PulseNTimesWithArduino(instr, 0, 4000, 0, 1, 100, h_Serial,
-                                     dac_resolution_bits);
+          // LED_PulseNTimesWithArduino(instr, 0, 4000, 0, 1, 100, h_Serial,
+          //                            dac_resolution_bits);
+          ViUInt16 brightness = 1000;  // 100% brightness
+          LED_PulseNTimes(instr, 0, 4000, 1, 1, brightness, USE_BOB);
           logger->info("LED 0: Done.");
         } else if (ch == 'Q' || ch == 'q') {
           // TODO: test this quit method. If works, then sigint can be limited
@@ -471,21 +533,31 @@ int main() {
                  " steps.");
     for (ProtocolStep& step : protocolSteps) {
       std::cout << "step " << i_step + 1 << "/" << n_steps << std::endl;
-      char* stepChars = step.stepToChars();
+      char* stepChars = step.stepToChars();  // get step after execution, as
+                                             // brightness might have changed
       logger->info("Step " + std::to_string(i_step) + ": " + stepChars);
       std::cout << stepChars << std::endl;
-      LED_PulseNTimesWithArduino(instr, step.led_index, step.pulse_width_ms,
-                                 step.time_between_pulses_ms, step.n_pulses,
-                                 step.brightness, h_Serial,
-                                 dac_resolution_bits);
-      logger->info("Step " + std::to_string(i_step) + " done.");
+      std::string function_name;
+      if (skipArduino) {
+        function_name = "LED_PulseNTimes()";
+        LED_PulseNTimes(instr, step.led_index, step.pulse_width_ms,
+                        step.time_between_pulses_ms, step.n_pulses,
+                        step.brightness, USE_BOB);
+      } else {
+        LED_PulseNTimesWithArduino(instr, step.led_index, step.pulse_width_ms,
+                                   step.time_between_pulses_ms, step.n_pulses,
+                                   step.brightness, h_Serial,
+                                   dac_resolution_bits, USE_BOB);
+        function_name = "LED_PulseNTimesWithArduino()";
+      }
+      logger->info("Step " + std::to_string(i_step) +
+                   " done: " + function_name);
+
       i_step++;
     }
   }
-
-  logger->info("Closing device.");
   printf("\nClose Device\n");
-  err = TL6WL_close(instr);
+  err = cleanup(instr, h_Serial, &logger);
   if (VI_SUCCESS != err) {
     sprintf_s(err_buffer, "TL6WL_close() : Error Code = %#.8lX", err);
     logger->error(err_buffer);

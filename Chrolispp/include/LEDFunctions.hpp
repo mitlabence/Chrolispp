@@ -2,17 +2,30 @@
 #define LED_FUNCTIONS_HPP
 
 #include <Windows.h>
-#include "TL6WL.h"
+
 #include "Logger.hpp"
-void LED_PulseNTimes(ViSession instr, ViInt16 led_index, ViInt32 pulse_width_ms,
-                            ViInt32 time_between_pulses_ms,
-                             ViInt32 n_pulses,
-                            ViInt16 brightness);
-void LED_PulseNTimesWithArduino(ViSession instr, ViInt16 led_index,
-                                ViInt32 pulse_width_ms,
-                                ViInt32 time_between_pulses_ms,
-                                ViInt32 n_pulses, ViInt16 brightness,
-                                HANDLE h_Serial, int dac_resolution_bits);
+#include "TL6WL.h"
+
+bool LED_HandleBreak(ViUInt32 time_between_pulses_ms,
+                     ViUInt32 brightness);
+bool LED_ValidateLEDIndex(ViUInt16 led_index);
+bool LED_ValidateParams(ViUInt16 led_index, ViUInt32 n_pulses,
+                        ViUInt16& brightness);
+bool LED_ValidateBrightness(ViUInt16& brightness);
+ViStatus LED_DoSequence(ViSession instr, ViUInt16 led_index,
+                        ViUInt32 pulse_width_ms,
+                        ViUInt32 time_between_pulses_ms, ViUInt32 n_pulses,
+                        ViInt16 brightness, bool use_bob);
+void LED_PulseNTimes(ViSession instr, ViUInt16 led_index,
+                     ViUInt32 pulse_width_ms, ViUInt32 time_between_pulses_ms,
+                     ViUInt32 n_pulses, ViUInt16& brightness, bool use_bob);
+void LED_PulseNTimesWithArduino(ViSession instr, ViUInt16 led_index,
+                                ViUInt32 pulse_width_ms,
+                                ViUInt32 time_between_pulses_ms,
+                                ViUInt32 n_pulses, ViUInt16& brightness,
+                                HANDLE h_Serial, int dac_resolution_bits,
+                                bool use_bob);
+
 std::string readBoxStatusWarnings(ViUInt32 boxStatus);
 class led_machine_error : public std::exception {
  public:

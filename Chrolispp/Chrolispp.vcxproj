@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -19,13 +19,27 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\ArduinoCommands.hpp" />
     <ClInclude Include="include\COMFunctions.hpp" />
+    <ClInclude Include="include\SinglePulsesBatch.hpp" />
+    <ClCompile Include="src\ArduinoCommands.cpp" />
+    <ClCompile Include="src\InitialBreakBatch.cpp" />
     <ClCompile Include="src\Chrolispp.cpp" />
     <ClCompile Include="src\COMFunctions.cpp" />
     <ClCompile Include="src\LEDFunctions.cpp" />
+    <ClCompile Include="src\SinglePulsesBatch.cpp" />
     <ClCompile Include="src\Logger.cpp" />
+    <ClCompile Include="src\ProtocolPlanner.cpp" />
     <ClCompile Include="src\ProtocolStep.cpp" />
+    <ClCompile Include="src\PulseChainBatch.cpp" />
+    <ClCompile Include="src\Timing.cpp" />
     <ClCompile Include="src\Utils.cpp" />
+    <ClInclude Include="include\InitialBreakBatch.hpp" />
+    <ClInclude Include="include\LEDFunctions.hpp" />
+    <ClInclude Include="include\ProtocolBatch.hpp" />
+    <ClInclude Include="include\ProtocolPlanner.hpp" />
+    <ClInclude Include="include\PulseChainBatch.hpp" />
+    <ClInclude Include="include\Timing.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\external\IviVisaType.h" />
@@ -33,7 +47,6 @@
     <ClInclude Include="include\external\TL6WL_service.h" />
     <ClInclude Include="include\external\TLUP.h" />
     <ClInclude Include="include\external\visatype.h" />
-    <ClInclude Include="include\LEDFunctions.hpp" />
     <ClInclude Include="include\Logger.hpp" />
     <ClInclude Include="include\ProtocolStep.hpp" />
     <ClInclude Include="include\Utils.hpp" />

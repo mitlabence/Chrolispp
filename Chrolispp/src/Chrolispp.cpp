@@ -46,6 +46,7 @@
  * disregarding all other values.
  */
 // TODO: show error message if wrong arduino COM Port specified
+
 #include <Windows.h>
 #include <conio.h>  // for key-press mode
 #include <stdio.h>
@@ -54,10 +55,12 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "COMFunctions.hpp"
 #include "LEDFunctions.hpp"
 #include "Logger.hpp"
+#include "ProtocolPlanner.hpp"
 #include "ProtocolStep.hpp"
 #include "TL6WL.h"
 #include "Utils.hpp"
@@ -87,6 +90,8 @@ static ViStatus cleanup(ViSession instr, HANDLE h_Serial,
   std::cout << "Cleaning up...";
   // set all LEDs to 0, close LED connection and logger.
   std::cout << "Turning off LEDs and closing connection." << std::endl;
+  TL6WL_TU_StartStopGeneratorOutput_TU(
+      instr, VI_FALSE);  // Stop the internal timer in case it is running
   TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE, VI_FALSE,
                                VI_FALSE, VI_FALSE);
   err = TL6WL_close(instr);
@@ -113,6 +118,103 @@ static void signalHandler(int signal) {
 
 int main() {
   std::cout << "Chrolis++ version " << VERSION_STR << std::endl;
+  ViStatus err;
+  char err_buffer[40];  // buffer for storing error messages that will be
+                        // printed to logging file
+#ifdef WIN32
+  ViChar bitness[TL6WL_LONG_STRING_SIZE] = "x86";
+#else
+  ViChar bitness[TL6WL_LONG_STRING_SIZE] = "x64";
+#endif
+  // printf("Search for connected CHROLIS Devices\n");
+  // logger->info("Search for connected CHROLIS Devices.");
+  ViSession instr = 0;
+  ViUInt32 rsrcCnt = 0;
+  err = TL6WL_findRsrc(instr, &rsrcCnt);
+  if (rsrcCnt == 0) {
+    // logger->error("No devices found. Protocol aborted.");
+    printf("No Chrolis LED device found.\n");
+    return -1;
+  }
+  printf("Found '%lu' Devices\n", rsrcCnt);
+  if (VI_SUCCESS != err) {
+    sprintf_s(err_buffer, "TL6WL_findRsrc() : Error Code = %#.8lX", err);
+    // logger->error(err_buffer); // At this point, no log file has been
+    // selected yet
+    printf("  TL6WL_findRsrc() :\n    Error Code = %#.8lX\n", err);
+    printf("\nProtocol Terminated\n");
+    return -1;
+  }
+
+  printf("\nGet Information of found Devices\n");
+  ViChar resourceName[512] = "n/a";
+  ViChar modelName[TL6WL_LONG_STRING_SIZE] = "n/a";
+  ViChar serialNumber[TL6WL_LONG_STRING_SIZE] = "n/a";
+  ViChar manufacturer[TL6WL_LONG_STRING_SIZE] = "n/a";
+  ViBoolean resourceAvailable = VI_FALSE;
+  ViBoolean IDQuery = VI_FALSE;
+  ViBoolean resetDevice = VI_FALSE;
+  for (ViInt32 i = 0; rsrcCnt > i; ++i) {
+    err = TL6WL_getRsrcName(instr, i, resourceName);
+    if (VI_SUCCESS == err) {
+      printf("    Resource Name DeviceID[%lu] = <%s>\n", 1 + i, resourceName);
+
+      err = TL6WL_getRsrcInfo(instr, i, modelName, serialNumber, manufacturer,
+                              &resourceAvailable);
+      if (VI_SUCCESS == err) {
+        printf(
+            "      Model Name = <%s>\n      SerNo = <%s>\n      Manufacturer = "
+            "<%s>\n      Available = <%s>\n",
+            modelName, serialNumber, manufacturer,
+            resourceAvailable == VI_TRUE ? "Yes" : "No");
+      } else {
+        printf("  TL6WL_getRsrcInfo() :    Error Code = %#.8lX\n", err);
+      }
+    } else {
+      sprintf_s(err_buffer, "TL6WL_getRsrcName() : Error Code = %#.8lX", err);
+      printf("  TL6WL_getRsrcName() :\n    Error Code = %#.8lX\n", err);
+    }
+  }
+
+  printf("\nOpen first available Device found\n");
+  // logger->info("Opening device: " + std::string(resourceName));
+  err = TL6WL_getRsrcName(instr, 0, resourceName);
+  if (VI_SUCCESS != err) {
+    sprintf_s(err_buffer, "TL6WL_getRsrcName() : Error Code = %#.8lX", err);
+    printf("  TL6WL_getRsrcName() :\n    Error Code = %#.8lX\n", err);
+    printf("\nProtocol Terminated\n");
+    return -2;
+  }
+  // logger->info("Initializing device: " + std::string(resourceName));
+  err = TL6WL_init(resourceName, IDQuery, resetDevice, &instr);
+  if (VI_SUCCESS != err) {
+    sprintf_s(err_buffer, "TL6WL_init() : Error Code = %#.8lX", err);
+    printf("  TL6WL_init() :\n    Error Code = %#.8lX\n", err);
+    printf("\nProtocol Terminated\n");
+    return -3;
+  }
+
+  // logger->info("Reading Box Status Register.");
+  printf("\nRead Box Status Register\n");
+
+  ViUInt32 boxStatus;
+  err = TL6WL_getBoxStatus(instr, &boxStatus);
+  try {
+    std::string boxWarning = readBoxStatusWarnings(boxStatus);
+    // if length of string > 0, there was a warning
+    if (!boxWarning.empty()) {
+      // logger->warning(boxWarning);
+      std::cerr << boxWarning << std::endl;
+    } else {
+      // logger->info("Box status OK.");
+    }
+  } catch (const std::exception& e) {
+    // logger->error(e.what());
+    std::cerr << e.what() << std::endl;
+    return -1;
+  }
+
+  std::cout << "\n" << std::endl;
   bool arduinoFound = false;
   char* firmwareVersion = new char[1];  // 1 byte, can hold -127 to 127?
   firmwareVersion[0] = static_cast<char>(-1);
@@ -260,8 +362,32 @@ int main() {
     logger->info("Arduino firmware version: " +
                  std::to_string(firmwareVersion[0]));
   }
-  char err_buffer[40];  // buffer for storing error messages that will be
-                        // printed to logging file
+  /*
+  // Minimal example defining ProtocolPlanner:
+  #include <vector>
+
+  #include "ProtocolPlanner.hpp"
+  #include "ProtocolStep.hpp"
+  #include "TL6WL.h"
+  int main() {
+    ViSession instr = 0;
+    std::vector<ProtocolStep> protocolSteps;
+    std::unique_ptr<Logger> logger;  // for accessing the logger outside try
+    std::unique_ptr<ProtocolPlanner> planner;
+
+    for (int i = 0; i < 10; i++) {
+        ProtocolStep protocolStep =
+        ProtocolStep(0, i + 10, i + 10, 5 + i, 10 * i + 5);
+        protocolSteps.push_back(protocolStep);
+    }
+
+    // Create ProtocolPlanner object with instr, protocolSteps and logger
+    //ProtocolPlanner planner(instr, protocolSteps, logger.get());
+    planner =
+      std::make_unique<ProtocolPlanner>(instr, protocolSteps, logger.get());
+  }
+  */
+  std::unique_ptr<ProtocolPlanner> protocolPlanner;
   if (!keyPressMode) {
     logger->info("Protocol file: " + fpath);
     // Sanity checking the protocol steps
@@ -319,6 +445,9 @@ int main() {
       // Print step for user to review
       step.printStep();
     }
+
+    protocolPlanner =
+        std::make_unique<ProtocolPlanner>(instr, protocolSteps, logger.get());
   }
   // Wait for user to press space to start the protocol or key-press mode, or q
   // to quit.
@@ -337,106 +466,12 @@ int main() {
     std::cout << "Starting " << modeString << " mode." << std::endl;
   }
 
-  ViStatus err;
-#ifdef WIN32
-  ViChar bitness[TL6WL_LONG_STRING_SIZE] = "x86";
-#else
-  ViChar bitness[TL6WL_LONG_STRING_SIZE] = "x64";
-#endif
   logger->info("Bitness is " + std::string(bitness));
   printf("This is start of Thorlabs CHROLIS TL6WL logging output [%s]!\n\n",
          bitness);
 
   printf("START : Chrolis++\n");
 
-  printf("Search for connected CHROLIS Devices\n");
-  logger->info("Search for connected CHROLIS Devices.");
-  ViSession instr = 0;
-  ViUInt32 rsrcCnt = 0;
-  err = TL6WL_findRsrc(instr, &rsrcCnt);
-  if (rsrcCnt == 0) {
-    logger->error("No devices found. Protocol aborted.");
-    printf("No devices found. Protocol aborted.\n");
-    return -1;
-  }
-  printf("Found '%lu' Devices\n", rsrcCnt);
-  if (VI_SUCCESS != err) {
-    sprintf_s(err_buffer, "TL6WL_findRsrc() : Error Code = %#.8lX", err);
-    logger->error(err_buffer);
-    printf("  TL6WL_findRsrc() :\n    Error Code = %#.8lX\n", err);
-    printf("\nProtocol Terminated\n");
-    return -1;
-  }
-
-  printf("\nGet Information of found Devices\n");
-  ViChar resourceName[512] = "n/a";
-  ViChar modelName[TL6WL_LONG_STRING_SIZE] = "n/a";
-  ViChar serialNumber[TL6WL_LONG_STRING_SIZE] = "n/a";
-  ViChar manufacturer[TL6WL_LONG_STRING_SIZE] = "n/a";
-  ViBoolean resourceAvailable = VI_FALSE;
-  ViBoolean IDQuery = VI_FALSE;
-  ViBoolean resetDevice = VI_FALSE;
-  for (ViInt32 i = 0; rsrcCnt > i; ++i) {
-    err = TL6WL_getRsrcName(instr, i, resourceName);
-    if (VI_SUCCESS == err) {
-      printf("    Resource Name DeviceID[%lu] = <%s>\n", 1 + i, resourceName);
-
-      err = TL6WL_getRsrcInfo(instr, i, modelName, serialNumber, manufacturer,
-                              &resourceAvailable);
-      if (VI_SUCCESS == err) {
-        printf(
-            "      Model Name = <%s>\n      SerNo = <%s>\n      Manufacturer = "
-            "<%s>\n      Available = <%s>\n",
-            modelName, serialNumber, manufacturer,
-            resourceAvailable == VI_TRUE ? "Yes" : "No");
-      } else {
-        printf("  TL6WL_getRsrcInfo() :    Error Code = %#.8lX\n", err);
-      }
-    } else {
-      sprintf_s(err_buffer, "TL6WL_getRsrcName() : Error Code = %#.8lX", err);
-      printf("  TL6WL_getRsrcName() :\n    Error Code = %#.8lX\n", err);
-    }
-  }
-
-  printf("\nOpen first available Device found\n");
-  logger->info("Opening device: " + std::string(resourceName));
-  err = TL6WL_getRsrcName(instr, 0, resourceName);
-  if (VI_SUCCESS != err) {
-    sprintf_s(err_buffer, "TL6WL_getRsrcName() : Error Code = %#.8lX", err);
-    printf("  TL6WL_getRsrcName() :\n    Error Code = %#.8lX\n", err);
-    printf("\nProtocol Terminated\n");
-    return -2;
-  }
-  logger->info("Initializing device: " + std::string(resourceName));
-  err = TL6WL_init(resourceName, IDQuery, resetDevice, &instr);
-  if (VI_SUCCESS != err) {
-    sprintf_s(err_buffer, "TL6WL_init() : Error Code = %#.8lX", err);
-    printf("  TL6WL_init() :\n    Error Code = %#.8lX\n", err);
-    printf("\nProtocol Terminated\n");
-    return -3;
-  }
-
-  logger->info("Reading Box Status Register.");
-  printf("\nRead Box Status Register\n");
-
-  ViUInt32 boxStatus;
-  err = TL6WL_getBoxStatus(instr, &boxStatus);
-  try {
-    std::string boxWarning = readBoxStatusWarnings(boxStatus);
-    // if length of string > 0, there was a warning
-    if (!boxWarning.empty()) {
-      logger->warning(boxWarning);
-      std::cerr << boxWarning << std::endl;
-    } else {
-      logger->info("Box status OK.");
-    }
-  } catch (const std::exception& e) {
-    logger->error(e.what());
-    std::cerr << e.what() << std::endl;
-    return -1;
-  }
-
-  std::cout << "\n" << std::endl;
   // Start thread to listen for escape key
   cleanupContext.h_Serial = h_Serial;
   cleanupContext.instr = instr;
@@ -526,36 +561,14 @@ int main() {
       }
     }
   } else {  // Run protocol steps
-    std::cout << "Press Ctrl+C to cancel the protocol." << std::endl;
-    int i_step = 0;
-    size_t n_steps = protocolSteps.size();
-    logger->info("Starting protocol with " + std::to_string(n_steps) +
-                 " steps.");
-    for (ProtocolStep& step : protocolSteps) {
-      std::cout << "step " << i_step + 1 << "/" << n_steps << std::endl;
-      char* stepChars = step.stepToChars();  // get step after execution, as
-                                             // brightness might have changed
-      logger->info("Step " + std::to_string(i_step) + ": " + stepChars);
-      std::cout << stepChars << std::endl;
-      std::string function_name;
-      if (skipArduino) {
-        function_name = "LED_PulseNTimes()";
-        LED_PulseNTimes(instr, step.led_index, step.pulse_width_ms,
-                        step.time_between_pulses_ms, step.n_pulses,
-                        step.brightness, USE_BOB);
-      } else {
-        LED_PulseNTimesWithArduino(instr, step.led_index, step.pulse_width_ms,
-                                   step.time_between_pulses_ms, step.n_pulses,
-                                   step.brightness, h_Serial,
-                                   dac_resolution_bits, USE_BOB);
-        function_name = "LED_PulseNTimesWithArduino()";
-      }
-      logger->info("Step " + std::to_string(i_step) +
-                   " done: " + function_name);
-
-      i_step++;
+    if (!protocolPlanner) {
+      throw std::runtime_error("ProtocolPlanner was not properly initialized!");
     }
+    protocolPlanner->setUpDevice();
+    std::cout << "Press Ctrl+C to cancel the protocol." << std::endl;
+    protocolPlanner->executeProtocol();
   }
+
   printf("\nClose Device\n");
   err = cleanup(instr, h_Serial, &logger);
   if (VI_SUCCESS != err) {

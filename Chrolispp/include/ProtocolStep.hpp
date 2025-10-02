@@ -5,16 +5,20 @@
 
 class ProtocolStep {
  public:
-  ProtocolStep(ViInt16 led_index, ViInt32 pulse_width_ms,
-               ViInt32 time_between_pulses_ms,
-                ViInt32 n_pulses, ViUInt16 brightness);
+  ProtocolStep(ViUInt16 led_index, ViUInt32 pulse_width_ms,
+               ViUInt32 time_between_pulses_ms,
+                ViUInt32 n_pulses, ViUInt16 brightness);
 
-  ViInt16 led_index;
-  ViInt32 pulse_width_ms;
-  ViInt32 time_between_pulses_ms;
-  ViInt32 n_pulses;
+  ViUInt16 led_index;  // LED index (0-5 for TL6WL)
+  ViUInt32 pulse_width_ms;
+  ViUInt32 time_between_pulses_ms;
+  ViUInt32 n_pulses;
   ViUInt16 brightness;
-
+  bool isGaplessSinglePulse() const;
+  bool isBreak() const;
+  ViUInt32 getBreakDurationMs() const;
+  ViUInt32 getTotalDurationMs() const;
+  void setBreakDuration(int break_duration_ms);
   void printStep();
   char* stepToChars();
 };

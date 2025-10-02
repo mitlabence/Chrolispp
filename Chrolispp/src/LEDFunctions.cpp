@@ -10,19 +10,6 @@
 
 const char DATA_LIGHT_OFF[] = "1";
 
-bool LED_HandleBreak(ViUInt32 time_between_pulses_ms, ViUInt32 brightness) {
-  // a break is defined by 0 brightness. Then the time_between_pulses_ms is
-  // considered. Other logical definitions of break should be unified in the
-  // ProtocolStep constructor, bringing them to this common format. (for example, setting brightness = 0 
-  // and pulse_width_ms != 0 should mean a break
-  // of pulse_width_ms + time_between_pulses_ms; this is handled in the constructor).
-  if (brightness == 0) {
-    Sleep(time_between_pulses_ms);
-    return true;
-  }
-  return false;
-}
-
 bool LED_ValidateLEDIndex(ViUInt16 led_index) {
   /* Validate LED index. Returns true if valid, false if invalid.
   Valid indices are 0-5 (6 LEDs).
@@ -33,8 +20,38 @@ bool LED_ValidateLEDIndex(ViUInt16 led_index) {
   return true;
 }
 
+bool LED_HandleBreak(ViUInt32 time_between_pulses_ms, ViUInt32 brightness) {
+  // a break is defined by 0 brightness. Then the time_between_pulses_ms is
+  // considered. Other logical definitions of break should be unified in the
+  // ProtocolStep constructor, bringing them to this common format. (for
+  // example, setting brightness = 0 and pulse_width_ms != 0 should mean a break
+  // of pulse_width_ms + time_between_pulses_ms; this is handled in the
+  // constructor).
+  if (brightness == 0) {
+    Sleep(time_between_pulses_ms);
+    return true;
+  }
+  return false;
+}
+
+bool LED_ValidateBrightness(ViUInt16& brightness) {
+  /* Validate brightness value. If out of range, bring into range (negative
+   * values to 0 [i.e. break], >1000 values to 1000 [i.e. 100.0%]). Returns true
+   * if brightness was in range, false if it was out of range and had to be
+   * changed.
+   */
+  if (brightness > 1000) {
+    std::cout << "Brightness > 100.0%: " << std::to_string(brightness)
+              << "... Using value 1000 (100.0%)" << std::endl;
+    brightness = 1000;
+    return false;
+  }
+  return true;
+}
+
 bool LED_ValidateParams(ViUInt16 led_index, ViUInt32 n_pulses,
                         ViUInt16& brightness) {
+  // DEPRECATED. Use ProtocolPlanner::validateStep instead.
   /* Validate parameters for LED pulsing functions. Returns true if protocol
     should proceed, false if no action should be taken. Raises exception if LED
     index is invalid. If necessary, brings LED power into valid range (negative
@@ -59,19 +76,91 @@ bool LED_ValidateParams(ViUInt16 led_index, ViUInt32 n_pulses,
   return true;
 }
 
-bool LED_ValidateBrightness(ViUInt16& brightness) {
-  /* Validate brightness value. If out of range, bring into range (negative
-   * values to 0 [i.e. break], >1000 values to 1000 [i.e. 100.0%]). Returns true
-   * if brightness was in range, false if it was out of range and had to be
-   * changed.
-   */
-  if (brightness > 1000) {
-    std::cout << "Brightness > 100.0%: " << std::to_string(brightness)
-              << "... Using value 1000 (100.0%)" << std::endl;
-    brightness = 1000;
-    return false;
+bool LED_isBreak(ViUInt32 pulse_width_ms, ViUInt32 time_between_pulses_ms,
+                 ViUInt32 brightness) {
+  // DEPRECATED, use isBreak() in ProtocolPlanner.cpp instead.
+  /* Check if the specified brightness indicates a break (0 brightness).
+  Returns true if it is a break, false otherwise.
+  */
+  if (brightness == 0) {
+    return true;
   }
-  return true;
+  return false;
+}
+
+/*
+led_index: 0-5 for the 6 LEDs.
+brightness: the integer format brightness value for the LED specified to
+    one decimal (i.e. 0 is 0.0%, 10 is 1.0%, 525 is 52.5%, 1000 is 100.0%).
+use_bob: whether to use breakout board to output the same signal on a TTL
+output. As the LED and the BOB signal use same internal timer, they should be
+synchronized, but cannot be guaranteed by this software.
+*/
+ViStatus LED_ConfigureSingleStep(ViSession instr, ViUInt16 led_index,
+                                 ViUInt32 start_delay_us,
+                                 ViUInt32 pulse_width_ms,
+                                 ViUInt32 time_between_pulses_ms,
+                                 ViUInt32 n_pulses, ViUInt16 brightness,
+                                 bool use_bob) {
+  ViStatus err;  // TODO: add error handling
+  err = TL6WL_TU_AddGeneratedSelfRunningSignal(
+      instr, led_index + 1, VI_FALSE, start_delay_us, pulse_width_ms * 1000,
+      time_between_pulses_ms * 1000, n_pulses);
+  if (use_bob) {
+    // Also set up corresponding TTL output channel for getting output timing
+    // signal (digital, i.e. no LED brightness info!) channels 7-12 are the
+    // output channels
+    // led_index + 1 + 6
+    err = TL6WL_TU_AddGeneratedSelfRunningSignal(
+        instr, 6 + led_index + 1, VI_FALSE, start_delay_us,
+        pulse_width_ms * 1000, time_between_pulses_ms * 1000, n_pulses);
+  }
+  return err;
+}
+
+/*
+Batch configuration of multiple LED steps. One batch is a sequence of steps that
+can be pre-programmed in the LED machine simultaneously, and does not include a
+break (that is, each LED index may occur once or not occur). Each vector should
+have the same length, and each led index different (the definition of a batch),
+except if it is a break (0 brightness). The steps will be configured in the
+order of the vectors, with no (intended) delay between them (i.e. the start time
+of step i+1 is the end time of step i). The function resets any previous
+configuration on the device.
+*/
+ViStatus LED_ConfigureBatch(ViSession instr, std::vector<ViUInt16>& led_indices,
+                            std::vector<ViUInt32>& pulse_widths_ms,
+                            std::vector<ViUInt32>& times_between_pulses_ms,
+                            std::vector<ViUInt32>& ns_pulses,
+                            std::vector<ViUInt16>& brightnesses,
+                            std::vector<bool>& use_bob) {
+  char leds_present =
+      0b000000;  // bitmask of which LEDs are already used in this batch
+  size_t size = led_indices.size();  // assuming all vectors have the same size
+  ViStatus err;
+  err = TL6WL_TU_ResetSequence(instr);
+  int total_duration_us = 0;
+  // TODO: add error handling
+  for (size_t i = 0; i < size; ++i) {
+    ViUInt16 led_index = led_indices[i];
+    ViUInt32 pulse_width_ms = pulse_widths_ms[i];
+    ViUInt32 time_between_pulses_ms = times_between_pulses_ms[i];
+    ViUInt32 n_pulses = ns_pulses[i];
+    ViUInt16 brightness = brightnesses[i];
+    bool bob = use_bob[i];
+    LED_ValidateParams(led_index, n_pulses, brightness);
+    LED_ValidateBrightness(brightness);
+
+    err = LED_ConfigureSingleStep(instr, led_index, total_duration_us,
+                                  pulse_width_ms, time_between_pulses_ms,
+                                  n_pulses, brightness, bob);
+    if (err != VI_SUCCESS) {
+      printf(" LED_ConfigureSingleStep  :\n    Error Code = %#.8lX\n", err);
+    }
+    total_duration_us +=
+        n_pulses * (pulse_width_ms + time_between_pulses_ms) * 1000;
+  }
+  return err;
 }
 
 ViStatus LED_DoSequence(ViSession instr, ViUInt16 led_index,
@@ -115,8 +204,9 @@ ViStatus LED_DoSequence(ViSession instr, ViUInt16 led_index,
     // Also set up corresponding TTL output channel for getting output timing
     // signal (digital, i.e. no LED brightness info!) channels 7-12 are the
     // output channels
+    // led_index + 1 + 6
     TL6WL_TU_AddGeneratedSelfRunningSignal(
-        instr, led_index + 1 + 6, VI_FALSE, 0, pulse_width_ms * 1000,
+        instr, 7, VI_FALSE, 0, pulse_width_ms * 1000,
         time_between_pulses_ms * 1000, n_pulses);
   }
   TL6WL_setLED_HeadPowerStates(instr, led_states[0], led_states[1],
@@ -299,3 +389,5 @@ std::string readBoxStatusWarnings(ViUInt32 boxStatus) {
   // If everything all right, do not return any warnings
   return "";
 }
+
+

@@ -5,9 +5,11 @@
 
 #include "constants.hpp"
 // Constructor definition
-ProtocolStep::ProtocolStep(ViUInt16 led_index, ViUInt32 pulse_width_ms,
+ProtocolStep::ProtocolStep(ViUInt16 step_id, ViUInt16 led_index,
+                           ViUInt32 pulse_width_ms,
                            ViUInt32 time_between_pulses_ms, ViUInt32 n_pulses,
-                           ViUInt16 brightness) {
+                           ViUInt16 brightness)
+    : step_id(step_id) {
   if (brightness ==
       0) {  // Unify break notation: either pulse_width 0, or brightness = 0; in
             // latter case, pulse duration also adds to break. To avoid handling
@@ -69,15 +71,18 @@ void ProtocolStep::setBreakDuration(int break_duration_ms) {
 }
 
 void ProtocolStep::printStep() {
+  // FIXME: use unified definition of break
   // If pulse width is 0, it means a break
   if (pulse_width_ms == 0) {
-    std::cout << "Break, duration: " << time_between_pulses_ms << " ms"
-              << std::endl;
+    std::cout << "Break (step " << step_id
+              << ", duration: " << time_between_pulses_ms << " ms" << std::endl;
   } else if (brightness == 0) {
-    std::cout << "Break, duration: " << pulse_width_ms + time_between_pulses_ms
+    std::cout << "Break (step " << step_id
+              << ", duration: " << pulse_width_ms + time_between_pulses_ms
               << " ms" << std::endl;
   } else {
-    std::cout << "LED index: " << led_index << ", "
+    std::cout << "Step " << step_id << ", "
+              << "LED index: " << led_index << ", "
               << "Pulse width: " << pulse_width_ms << " ms, "
               << "Time between pulses: " << time_between_pulses_ms << " ms, "
               << "Number of pulses: " << n_pulses << ", "
@@ -92,18 +97,19 @@ char* ProtocolStep::toChars(const std::string& prefix) {
 
   // Format the string into the buffer
   if (pulse_width_ms == 0) {
-    std::snprintf(stepChars, bufferSize, "%sBreak, duration: %d ms", prefix.c_str(),
-                  time_between_pulses_ms);
+    std::snprintf(stepChars, bufferSize, "%sStep %zu Break, duration: %d ms",
+                  prefix.c_str(), step_id, time_between_pulses_ms);
   } else if (brightness == 0) {
-    std::snprintf(stepChars, bufferSize, "%sBreak, duration: %d ms", prefix.c_str(),
+    std::snprintf(stepChars, bufferSize, "%sBreak (step %zu), duration: %d ms",
+                  prefix.c_str(), step_id,
                   pulse_width_ms + time_between_pulses_ms);
   } else {
     std::snprintf(
         stepChars, bufferSize,
-        "%sLED index: %d, Pulse width: %d ms, Time between pulses: %d ms, "
+        "%sStep %zu: LED index: %d, Pulse width: %d ms, Time between pulses: %d ms, "
         "Number of pulses: %d, Brightness: %d",
-        prefix.c_str(), led_index, pulse_width_ms, time_between_pulses_ms, n_pulses,
-        brightness);
+        prefix.c_str(), step_id, led_index, pulse_width_ms, time_between_pulses_ms,
+        n_pulses, brightness);
   }
   return stepChars;
 }

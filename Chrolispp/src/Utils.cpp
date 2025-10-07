@@ -89,6 +89,7 @@ std::string SelectFolderAndSuggestFile(const std::string& suggested_fname) {
 std::vector<ProtocolStep> readProtocolCSV(const std::string& filePath) {
   std::vector<ProtocolStep> protocolSteps;
   std::ifstream file(filePath);
+  unsigned short i_row = 0;
   if (!file.is_open()) {
     std::cerr << "Error opening file: " << filePath << std::endl;
     return protocolSteps;
@@ -115,9 +116,10 @@ std::vector<ProtocolStep> readProtocolCSV(const std::string& filePath) {
 
     // Ensure there are exactly 5 values read
     if (row.size() == 5) {
-      ProtocolStep step(row[0], row[1], row[2], row[3], row[4]);
+      ProtocolStep step(i_row, row[0], row[1], row[2], row[3], row[4]);
       protocolSteps.push_back(step);
     }
+    i_row++;
   }
 
   file.close();

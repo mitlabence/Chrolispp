@@ -61,7 +61,7 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
   for (auto& step : protocol_steps) {
     char* chs = step.toChars("");
     logger_ptr->protocol(std::string("Executing step #") +
-                     std::to_string(i_step + 1) + " in batch: " + chs);
+                         std::to_string(i_step + 1) + " in batch: " + chs);
     // Step 1 brightnesses have already been set up when setUpThisBatch() was
     // called
     if (i_step > 0) {
@@ -74,6 +74,10 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
       led_states[led_index] = VI_TRUE;
       led_brightness[led_index] = brightness;
       // Set up LED head brightnesses
+      logger_ptr->trace(
+          "SinglePulsesBatch::execute(): TL6WL_setLED_HeadBrightness() to turn "
+          "on LED " +
+          std::to_string(led_index));
       err = TL6WL_setLED_HeadBrightness(
           instr, led_brightness[0], led_brightness[1], led_brightness[2],
           led_brightness[3], led_brightness[4], led_brightness[5]);
@@ -88,6 +92,10 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
       led_states[led_index] = VI_TRUE;
     }
     // Set up LED head states
+    logger_ptr->trace(
+        "SinglePulsesBatch::execute(): TL6WL_setLED_HeadPowerStates() to power "
+        "on LED " +
+        std::to_string(led_index));
     err = TL6WL_setLED_HeadPowerStates(instr, led_states[0], led_states[1],
                                        led_states[2], led_states[3],
                                        led_states[4], led_states[5]);
@@ -104,7 +112,7 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
       // Turn off current LED
       led_states[led_index] = VI_FALSE;
       led_brightness[led_index] = 0;
-      logger_ptr->trace("Trying to shut down head power states...");
+      logger_ptr->trace("SinglePulsesBatch::execute(): Trying to shut down head power states...");
       err = TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE,
                                          VI_FALSE, VI_FALSE, VI_FALSE);
       if (VI_SUCCESS != err) {
@@ -120,7 +128,7 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
     i_step++;
   }
   executed = true;
-  logger_ptr->trace("SinglePulsesBatch execute() done.");
+  logger_ptr->trace("SinglePulsesBatch::execute() done.");
   auto end = std::chrono::high_resolution_clock::now();
   auto actual_duration_us =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start);

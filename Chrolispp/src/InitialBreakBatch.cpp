@@ -33,12 +33,12 @@ std::chrono::milliseconds InitialBreakBatch::getTotalDurationMs() const {
 std::chrono::microseconds InitialBreakBatch::execute() {
   // TODO: this execute feels like a waste of computing time...
   logger_ptr->trace("InitialBreakBatch execute() (no action)");
-  if (executed) {
+  if (execute_attempted) {
     throw std::logic_error(
         "InitialBreakBatch: attempting to execute already executed batch.");
   }
   auto start = std::chrono::high_resolution_clock::now();
-  executed = true;
+  execute_attempted = true;
   logger_ptr->trace("InitialBreakBatch execute() done.");
   // sleep for busy duration, which is 0 ms
   auto end = std::chrono::high_resolution_clock::now();
@@ -55,7 +55,7 @@ void InitialBreakBatch::setUpNextBatch(ProtocolBatch& next_batch) {
   auto start = std::chrono::high_resolution_clock::now();
   logger_ptr->trace("InitialBreakBatch setUpNextBatch()");
   // TODO: avoid repeating this code in other implementations of ProtocolBatch
-  if (!executed) {
+  if (!execute_attempted) {
     throw std::logic_error(
         "Cannot set up next batch before executing this batch.");
   }

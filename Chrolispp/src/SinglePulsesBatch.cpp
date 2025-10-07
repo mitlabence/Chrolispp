@@ -43,7 +43,7 @@ std::chrono::milliseconds SinglePulsesBatch::getTotalDurationMs() const {
 
 std::chrono::microseconds SinglePulsesBatch::execute() {
   logger_ptr->trace("SinglePulsesBatch execute()");
-  if (executed) {
+  if (execute_attempted) {
     throw std::logic_error(
         "SinglePulsesBatch: attempting to execute already executed batch.");
   }
@@ -58,6 +58,7 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
   // Set up LED head brightness values
   led_brightness[led_index] = brightness;
   int i_step = 0;
+  execute_attempted = true;
   for (auto& step : protocol_steps) {
     char* chs = step.toChars("");
     logger_ptr->protocol(std::string("Executing step #") +
@@ -112,7 +113,9 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
       // Turn off current LED
       led_states[led_index] = VI_FALSE;
       led_brightness[led_index] = 0;
-      logger_ptr->trace("SinglePulsesBatch::execute(): Trying to shut down head power states...");
+      logger_ptr->trace(
+          "SinglePulsesBatch::execute(): Trying to shut down head power "
+          "states...");
       err = TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE,
                                          VI_FALSE, VI_FALSE, VI_FALSE);
       if (VI_SUCCESS != err) {
@@ -127,7 +130,24 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
     }
     i_step++;
   }
-  executed = true;
+  err = TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE,
+                                     VI_FALSE, VI_FALSE, VI_FALSE);
+  if (VI_SUCCESS != err) {
+    throw std::runtime_error(
+        "SinglePulsesBatch::execute(): Error turning off LEDs after pulse "
+        "chain.");
+  }
+  err = TL6WL_setLED_HeadBrightness(instr, 0, 0, 0, 0, 0, 0);
+  if (VI_SUCCESS != err) {
+    throw std::runtime_error(
+        "SinglePulsesBatch::execute(): Error setting LED head brightness to 0 "
+        "after pulse chain.");
+  }
+  err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, false);
+  if (VI_SUCCESS != err) {
+    throw std::runtime_error(
+        "SinglePulsesBatch::execute(): Error stopping signal generator.");
+  }
   logger_ptr->trace("SinglePulsesBatch::execute() done.");
   auto end = std::chrono::high_resolution_clock::now();
   auto actual_duration_us =
@@ -140,7 +160,7 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
 void SinglePulsesBatch::setUpNextBatch(ProtocolBatch& next_batch) {
   logger_ptr->trace("SinglePulsesBatch setUpNextBatch()");
   // TODO: avoid repeating this code in other implementations of ProtocolBatch
-  if (!executed) {
+  if (!execute_attempted) {
     throw std::logic_error(
         "Cannot set up next batch before executing this batch.");
   }

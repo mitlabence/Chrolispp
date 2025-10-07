@@ -92,7 +92,7 @@ class ProtocolBatch {
   std::vector<ProtocolStep> protocol_steps;
   std::chrono::milliseconds busy_duration_ms;
   std::chrono::milliseconds total_duration_ms;
-  bool executed = false;
+  bool execute_attempted = false;  // Block running execute() more than once (even if execute() did not succeed)
   /*
   Convert batch to printable chars message.
   The caller is responsible for deleting the returned char array.

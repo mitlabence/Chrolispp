@@ -5,7 +5,33 @@
 PulseChainBatch::PulseChainBatch(ViSession instr,
                                  const std::vector<ProtocolStep>& steps,
                                  Logger* logger_ptr)
-    : ProtocolBatch(instr, steps, logger_ptr) {}
+    : ProtocolBatch(instr, steps, logger_ptr) {
+  if (steps.empty()) {
+    throw std::invalid_argument("No protocol steps provided.");
+  }
+  // Calculate busy and total duration. Busy duration is total duration minus
+  // the very last idle time
+  int busy_ms = 0;
+  int total_ms = 0;
+  for (const auto& step : steps) {
+    if (step.n_pulses == 1) {
+      throw std::invalid_argument(
+          "PulseChainBatch can only contain steps with multiple pulses.");
+    }
+    // Set LED mask proper digit to 1, e.g. for led_index = 2, led_mask =
+    // 0b000100
+    int led_index = step.led_index;
+    led_mask |= (1 << led_index);
+    total_ms += step.getTotalDurationMs();
+  }
+  // subtract the last idle time (time between pulses of the last step last
+  // pulse) to get busy_ms
+  busy_ms = total_ms - steps.back().time_between_pulses_ms;
+  busy_duration_ms = std::chrono::milliseconds(busy_ms);
+  total_duration_ms = std::chrono::milliseconds(total_ms);
+
+  protocol_steps = steps;
+}
 
 std::chrono::milliseconds PulseChainBatch::getBusyDurationMs() const {
   return busy_duration_ms;
@@ -17,7 +43,7 @@ std::chrono::milliseconds PulseChainBatch::getTotalDurationMs() const {
 
 std::chrono::microseconds PulseChainBatch::execute() {
   logger_ptr->trace("PulseChainBatch execute()");
-  if (executed) {
+  if (execute_attempted) {
     throw std::logic_error(
         "PulseChainBatch: attempting to execute already executed batch.");
   }
@@ -26,25 +52,66 @@ std::chrono::microseconds PulseChainBatch::execute() {
   // Start the timer
   logger_ptr->protocol("Executing PulseChainBatch with steps:");
   logger_ptr->multiLineProtocol(toChars("\t", "\t\t"));
+  ViBoolean led_states[6] = {VI_FALSE, VI_FALSE, VI_FALSE,
+                             VI_FALSE, VI_FALSE, VI_FALSE};
+  execute_attempted = true;
+  // Go through LED mask, set led_states accordingly
+  for (int i = 0; i < 6; i++) {
+    if (led_mask & (1 << i)) {
+      led_states[i] = VI_TRUE;
+    }
+  }
+  logger_ptr->trace(
+      "PulseChainBatch::execute(): TL6WL_setLED_HeadPowerStates() to set "
+      "states to " +
+      std::to_string(led_states[0]) + ", " + std::to_string(led_states[1]) +
+      ", " + std::to_string(led_states[2]) + ", " +
+      std::to_string(led_states[3]) + ", " + std::to_string(led_states[4]) +
+      ", " + std::to_string(led_states[5]));
+  err = TL6WL_setLED_HeadPowerStates(instr, led_states[0], led_states[1],
+                                     led_states[2], led_states[3],
+                                     led_states[4], led_states[5]);
+  logger_ptr->trace(
+      "PulseChainBatch::execute(): TL6WL_TU_StartStopGeneratorOutput_TU(instr, "
+      "true)");
   err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, true);
   if (VI_SUCCESS != err) {
     throw std::runtime_error(
         "PulseChainBatch::execute(): Error starting signal generator.");
   }
   Timing::precise_sleep_for(busy_duration_ms);
-  executed = true;
+  err = TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE,
+                                     VI_FALSE, VI_FALSE, VI_FALSE);
+  if (VI_SUCCESS != err) {
+    throw std::runtime_error(
+        "PulseChainBatch::execute(): Error turning off LEDs after pulse "
+        "chain.");
+  }
+  err = TL6WL_setLED_HeadBrightness(instr, 0, 0, 0, 0, 0, 0);
+  if (VI_SUCCESS != err) {
+    throw std::runtime_error(
+        "PulseChainBatch::execute(): Error setting LED head brightness to 0 "
+        "after pulse chain.");
+  }
+  err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, false);
+  if (VI_SUCCESS != err) {
+    throw std::runtime_error(
+        "PulseChainBatch::execute(): Error stopping signal generator.");
+  }
   logger_ptr->trace("PulseChainBatch execute() done.");
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
+  auto actual_duration_us =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-  return duration;
+  busy_duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+      actual_duration_us);  // update actual busy duration
+  return actual_duration_us;
 }
 
 void PulseChainBatch::setUpNextBatch(ProtocolBatch& next_batch) {
   auto start = std::chrono::high_resolution_clock::now();
   logger_ptr->trace("PulseChainBatch setUpNextBatch()");
   // TODO: avoid repeating this code in other implementations of ProtocolBatch
-  if (!executed) {
+  if (!execute_attempted) {
     throw std::logic_error(
         "Cannot set up next batch before executing this batch.");
   }
@@ -70,7 +137,13 @@ void PulseChainBatch::setUpThisBatch() {
   // setup... Or just send brightness 0?
   err = TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE,
                                      VI_FALSE, VI_FALSE, VI_FALSE);
+  if (VI_SUCCESS != err) {
+    throw std::runtime_error(
+        "PulseChainBatch::setUpThisBatch(): Error turning off LEDs.");
+  }
   // Stop timer
+  // TODO: this should not be necessary, as timer is stopped in beginning of the
+  // program, and at the end of each execute().
   err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, false);
   if (VI_SUCCESS != err) {
     throw std::runtime_error(
@@ -91,9 +164,15 @@ void PulseChainBatch::setUpThisBatch() {
     int led_index = step.led_index;
     int brightness = step.brightness;
     led_brightness[led_index] = brightness;
-    led_mask |= (1 << led_index);
+    logger_ptr->trace(
+        "Setting up step: signalNr" + std::to_string(led_index + 1) +
+        ", startDelay: " + std::to_string(duration_so_far_us) +
+        "us, activeTimeus" + std::to_string(step.pulse_width_ms * 1000) +
+        " us, inactiveTimeus " +
+        std::to_string(step.time_between_pulses_ms * 1000) +
+        " us, repititionCount " + std::to_string(step.n_pulses));
     err = TL6WL_TU_AddGeneratedSelfRunningSignal(
-        instr, step.led_index + 1, VI_FALSE, duration_so_far_us,
+        instr, led_index + 1, VI_FALSE, duration_so_far_us,
         step.pulse_width_ms * 1000, step.time_between_pulses_ms * 1000,
         step.n_pulses);
     if (VI_SUCCESS != err) {
@@ -113,6 +192,14 @@ void PulseChainBatch::setUpThisBatch() {
     }
     duration_so_far_us += step.getTotalDurationMs() * 1000;
   }
+  logger_ptr->trace(
+      "PulseChainBatch::setUpThisBatch(): Setting brightnesses to " +
+      std::to_string(led_brightness[0]) + ", " +
+      std::to_string(led_brightness[1]) + ", " +
+      std::to_string(led_brightness[2]) + ", " +
+      std::to_string(led_brightness[3]) + ", " +
+      std::to_string(led_brightness[4]) + ", " +
+      std::to_string(led_brightness[5]));
   err = TL6WL_setLED_HeadBrightness(instr, led_brightness[0], led_brightness[1],
                                     led_brightness[2], led_brightness[3],
                                     led_brightness[4], led_brightness[5]);
@@ -126,5 +213,6 @@ void PulseChainBatch::setUpThisBatch() {
 
 char* PulseChainBatch::toChars(const std::string& prefix,
                                const std::string& step_level_prefix) {
-  return ProtocolBatch::batchToChars("PulseChainBatch", prefix, step_level_prefix);
+  return ProtocolBatch::batchToChars("PulseChainBatch", prefix,
+                                     step_level_prefix);
 }

@@ -417,6 +417,10 @@ void ProtocolPlanner::executeProtocol() {
       std::chrono::milliseconds total_duration_ms = batch.getTotalDurationMs();
       std::chrono::milliseconds busy_duration_ms = batch.getBusyDurationMs();
       if (total_duration_ms > busy_duration_ms) {
+        logger_ptr->trace(
+            "Sleeping for remaining time: " +
+            std::to_string((total_duration_ms - busy_duration_ms).count()) +
+            " ms");
         Timing::precise_sleep_for(total_duration_ms - busy_duration_ms);
       }
     } else if (batches.size() > 1) {  // TODO: batches cannot be empty
@@ -430,8 +434,14 @@ void ProtocolPlanner::executeProtocol() {
       current_batch.execute();
       //
       for (size_t i_batch = 0; i_batch + 1 < batches.size(); ++i_batch) {
+        std::cout << "Executing batch " << i_batch << " of " << batches.size()
+                  << std::endl;
         current_batch = *batches[i_batch];
         next_batch = *batches[i_batch + 1];
+        std::cout << "Current batch: " << current_batch.toChars("", "\t")
+                  << std::endl;
+        std::cout << "Next batch: " << next_batch.toChars("", "\t")
+                  << std::endl;
         // Set up next batch
         current_batch.setUpNextBatch(next_batch);
         // Execute next batch
@@ -444,6 +454,10 @@ void ProtocolPlanner::executeProtocol() {
       std::chrono::milliseconds busy_duration_ms =
           next_batch.getBusyDurationMs();
       if (total_duration_ms > busy_duration_ms) {
+        logger_ptr->trace(
+            "Sleeping for remaining time: " +
+            std::to_string((total_duration_ms - busy_duration_ms).count()) +
+            " ms");
         Timing::precise_sleep_for(total_duration_ms - busy_duration_ms);
       }
     }
@@ -523,8 +537,8 @@ char* ProtocolPlanner::toChars(const std::string& prefix,
   char* pPlannerChars = new char[bufferSize];
 
   std::snprintf(pPlannerChars, bufferSize,
-                "%sProtocol with %zu batch(es), %zu step(s):\n", prefix.c_str(), batches.size(),
-                n_steps);
+                "%sProtocol with %zu batch(es), %zu step(s):\n", prefix.c_str(),
+                batches.size(), n_steps);
 
   // Loop over batches, use their toChars() functions
   for (auto& batch : batches) {

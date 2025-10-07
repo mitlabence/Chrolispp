@@ -219,6 +219,11 @@ int main() {
       printf("\nProtocol Terminated\n");
       return -3;
     }
+    // Stop any possible light
+    err = TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE,
+                                       VI_FALSE, VI_FALSE, VI_FALSE);
+    err = TL6WL_setLED_HeadBrightness(instr, 0, 0, 0, 0, 0, 0);
+    err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, false);
 
     // logger->info("Reading Box Status Register.");
     printf("\nRead Box Status Register\n");
@@ -241,6 +246,11 @@ int main() {
     }
 
     std::cout << "\n" << std::endl;
+
+    if (VI_SUCCESS != err) {
+      throw std::runtime_error(
+          "Chrolispp.cpp main(): Error stopping signal generator.");
+    }
 
     while (!arduinoFound &&
            !skipArduino) {  // break if arduino is found or user skips
@@ -585,9 +595,10 @@ int main() {
     protocolPlanner->setUpDevice();
     std::cout << "Press Ctrl+C to cancel the protocol." << std::endl;
     try {
-      protocolPlanner->executeProtocol(); 
+      protocolPlanner->executeProtocol();
     } catch (const std::runtime_error& e) {
-      std::cerr << "Runtime error during protocolPlanner::executeProtocol(): " << e.what() << std::endl;
+      std::cerr << "Runtime error during protocolPlanner::executeProtocol(): "
+                << e.what() << std::endl;
       err = cleanup(instr, h_Serial, &logger);
       return -1;
     }

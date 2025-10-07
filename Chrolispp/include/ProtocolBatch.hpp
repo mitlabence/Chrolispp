@@ -113,14 +113,11 @@ class ProtocolBatch {
       // Use strncat_s if available, otherwise use strncat with bounds checking
 #ifdef _MSC_VER  // Check if compiling with Microsoft Visual Studio
       // strncat_s the step level prefix first
-      strncat_s(batchChars, buffer_size, step_level_prefix.c_str(), buffer_size - std::strlen(batchChars) - 1);
       strncat_s(batchChars, buffer_size, stepChars,
                 buffer_size - std::strlen(batchChars) - 1);
       strncat_s(batchChars, buffer_size, "\n",
                 buffer_size - std::strlen(batchChars) - 1);
 #else
-      strncat(batchChars, step_level_prefix.c_str(),
-              buffer_size - std::strlen(batchChars) - 1);
       strncat(batchChars, stepChars, buffer_size - std::strlen(batchChars) - 1);
       strncat(batchChars, "\n", buffer_size - std::strlen(batchChars) - 1);
 #endif

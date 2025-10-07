@@ -4,10 +4,14 @@
 #pragma comment(lib, "Winmm.lib")
 #include <windows.h>
 
+#include <iostream>
+
 void Timing::precise_sleep_for(std::chrono::milliseconds ms) {
   // Request 1 ms timer resolution on Windows
+  DWORD dw_ms = static_cast<DWORD>(ms.count());
+  //std::cout << "Sleeping for " << dw_ms << " ms" << std::endl;
   timeBeginPeriod(1);
-  Sleep(static_cast<DWORD>(ms.count()));
+  Sleep(dw_ms);
   timeEndPeriod(1);
 }
 

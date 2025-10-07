@@ -1,9 +1,11 @@
 #include "PulseChainBatch.hpp"
 
 #include "Timing.hpp"
+#include "constants.hpp"
 PulseChainBatch::PulseChainBatch(ViSession instr,
-                                 const std::vector<ProtocolStep>& steps)
-    : ProtocolBatch(instr, steps) {}
+                                 const std::vector<ProtocolStep>& steps,
+                                 Logger* logger_ptr)
+    : ProtocolBatch(instr, steps, logger_ptr) {}
 
 std::chrono::milliseconds PulseChainBatch::getBusyDurationMs() const {
   return busy_duration_ms;
@@ -14,27 +16,38 @@ std::chrono::milliseconds PulseChainBatch::getTotalDurationMs() const {
 }
 
 std::chrono::microseconds PulseChainBatch::execute() {
+  logger_ptr->trace("PulseChainBatch execute()");
+  if (executed) {
+    throw std::logic_error(
+        "PulseChainBatch: attempting to execute already executed batch.");
+  }
   auto start = std::chrono::high_resolution_clock::now();
   ViStatus err;
   // Start the timer
+  logger_ptr->protocol("Executing PulseChainBatch with steps:");
+  logger_ptr->multiLineProtocol(toChars("\t", "\t\t"));
   err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, true);
   if (VI_SUCCESS != err) {
     throw std::runtime_error(
         "PulseChainBatch::execute(): Error starting signal generator.");
   }
   Timing::precise_sleep_for(busy_duration_ms);
+  executed = true;
+  logger_ptr->trace("PulseChainBatch execute() done.");
   auto end = std::chrono::high_resolution_clock::now();
-  return std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  auto duration =
+      std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  return duration;
 }
 
 void PulseChainBatch::setUpNextBatch(ProtocolBatch& next_batch) {
+  auto start = std::chrono::high_resolution_clock::now();
+  logger_ptr->trace("PulseChainBatch setUpNextBatch()");
   // TODO: avoid repeating this code in other implementations of ProtocolBatch
   if (!executed) {
     throw std::logic_error(
         "Cannot set up next batch before executing this batch.");
   }
-
-  auto start = std::chrono::high_resolution_clock::now();
   next_batch.setUpThisBatch();
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::milliseconds duration =
@@ -45,9 +58,11 @@ void PulseChainBatch::setUpNextBatch(ProtocolBatch& next_batch) {
   if (duration < total_duration_ms - busy_duration_ms) {
     Timing::precise_sleep_for(total_duration_ms - busy_duration_ms - duration);
   }
+  logger_ptr->trace("PulseChainBatch setUpNextBatch() done.");
 }
 
 void PulseChainBatch::setUpThisBatch() {
+  logger_ptr->trace("PulseChainBatch setUpThisBatch()");
   // Loop over steps, set up periodic signal and keep track of delay times
   ViStatus err;
   // Turn off LEDs
@@ -106,4 +121,10 @@ void PulseChainBatch::setUpThisBatch() {
         "SinglePulsesBatch::setUpThisBatch(): Error setting LED head "
         "brightness.");
   }
+  logger_ptr->trace("PulseChainBatch setUpThisBatch() done.");
+}
+
+char* PulseChainBatch::toChars(const std::string& prefix,
+                               const std::string& step_level_prefix) {
+  return ProtocolBatch::batchToChars("PulseChainBatch", prefix, step_level_prefix);
 }

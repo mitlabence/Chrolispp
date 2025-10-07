@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="include\ArduinoCommands.hpp" />
     <ClInclude Include="include\COMFunctions.hpp" />
+    <ClInclude Include="include\constants.hpp" />
     <ClInclude Include="include\SinglePulsesBatch.hpp" />
     <ClCompile Include="src\ArduinoCommands.cpp" />
     <ClCompile Include="src\InitialBreakBatch.cpp" />

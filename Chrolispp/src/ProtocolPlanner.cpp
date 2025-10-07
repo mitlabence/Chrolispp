@@ -12,6 +12,8 @@
 #include "PulseChainBatch.hpp"
 #include "SinglePulsesBatch.hpp"
 #include "TL6WL.h"
+#include "Timing.hpp"
+#include "constants.hpp"
 static void logError(Logger& logger_ptr, std::string_view func_name,
                      uint32_t err, bool verbose = true) {
   std::string err_msg =
@@ -26,9 +28,7 @@ static void logError(Logger& logger_ptr, std::string_view func_name,
 ProtocolPlanner::ProtocolPlanner(ViSession instr,
                                  std::vector<ProtocolStep> protocolSteps,
                                  Logger* logger_ptr)
-    : instr(instr),
-      steps(std::move(protocolSteps)),
-      logger_ptr(logger_ptr) {
+    : instr(instr), steps(std::move(protocolSteps)), logger_ptr(logger_ptr) {
   // TODO: for each different wavelength, one can already program the LED
   // machine with calculated delays. If multiple steps with the same
   // wavelength
@@ -40,7 +40,6 @@ ProtocolPlanner::ProtocolPlanner(ViSession instr,
     logger_ptr->error("No protocol steps provided.");
     throw std::invalid_argument("No protocol steps provided.");
   }
-  n_steps = static_cast<int>(steps.size());
   // loop over all steps
   int i_step = 1;  // for user display, start with 1
   for (auto& step : steps) {
@@ -74,14 +73,15 @@ ProtocolPlanner::ProtocolPlanner(ViSession instr,
         logger_ptr->error(err_msg);
         throw std::invalid_argument(err_msg);
       }
-        i_step++;
     }
+    i_step++;
   }
   // Merge compatible steps to remove redundant steps
   mergeSteps(steps);
+  n_steps = static_cast<size_t>(steps.size());
   // Produce batches (groups of steps that can be programmed at once) from list
   // of steps
-  std::vector<std::unique_ptr<ProtocolBatch>> batches = translateToBatches();
+  batches = translateToBatches();
   if (batches.empty()) {
     throw std::runtime_error("No batches created from protocol steps.");
   }
@@ -144,12 +144,25 @@ void ProtocolPlanner::mergeSteps(std::vector<ProtocolStep>& protocolSteps) {
         ViInt32 current_break = current.getBreakDurationMs();
         ViInt32 next_break = next.getBreakDurationMs();
         current.setBreakDuration(current_break + next_break);
+        std::string merge_msg =
+            std::format("Merge consecutive breaks: {} ms + {} ms = {} ms",
+                        current_break, next_break, current_break + next_break);
+        logger_ptr->trace(merge_msg);
+        std::cout << merge_msg << std::endl;
         protocolSteps.erase(protocolSteps.begin() + i + 1);
         // Don't increment i but check again with same current in case of
         // multiple matches
         continue;
       }
       case 2: {
+        std::string merge_msg = std::format(
+            "Merge compatible steps: LED {}, brightness {}, pulse width {} "
+            "ms, time between pulses {} ms, number of pulses {} + {} = {}",
+            current.led_index, current.brightness, current.pulse_width_ms,
+            current.time_between_pulses_ms, current.n_pulses, next.n_pulses,
+            current.n_pulses + next.n_pulses);
+        logger_ptr->trace(merge_msg);
+        std::cout << merge_msg << std::endl;
         // Both are compatible non-breaks, merge into current, erase next
         current.n_pulses += next.n_pulses;
         protocolSteps.erase(protocolSteps.begin() + i + 1);
@@ -166,6 +179,15 @@ void ProtocolPlanner::mergeSteps(std::vector<ProtocolStep>& protocolSteps) {
         } else {
           next_break_duration = next.time_between_pulses_ms;
         }
+        std::string merge_msg = std::format(
+            "Merge gapless single pulse with {}: LED {}, brightness {}, "
+            "new pulse width {} ms, new time between pulses {} ms",
+            next.isBreak() ? "break" : "compatible single pulse",
+            current.led_index, current.brightness,
+            current.pulse_width_ms + next.pulse_width_ms,
+            current.time_between_pulses_ms + next_break_duration);
+        logger_ptr->trace(merge_msg);
+        std::cout << merge_msg << std::endl;
         current.pulse_width_ms += next.pulse_width_ms;  // +0 if next is break
         current.time_between_pulses_ms += next_break_duration;
         protocolSteps.erase(protocolSteps.begin() + i + 1);
@@ -243,6 +265,8 @@ std::unique_ptr<ProtocolBatch> ProtocolPlanner::getNextBatch(int& step_cursor) {
   int i_current_candidate =
       step_cursor;  // start with first step of current batch
   int batch_end = -1;
+  int led_mask = 0b000000;  // to track which LEDs are used in current batch for
+                            // pulse chains
   // loop over steps until end of current batch found or end of steps
   while (!next_batch_found && (i_current_candidate < n_steps)) {
     ProtocolStep& current = steps[i_current_candidate];
@@ -254,9 +278,10 @@ std::unique_ptr<ProtocolBatch> ProtocolPlanner::getNextBatch(int& step_cursor) {
         initial_break_type = true;
       }
       batch_end = i_current_candidate;
-      break;
+      break;  // Quit while loop
     }
-    // If current step is single pulse:
+    // If current step is single pulse: include each consecutive step that is
+    // also single pulse.
     if (current.n_pulses == 1) {
       // If this is first step of current batch, set batch type to single
       if (i_current_candidate == step_cursor) {
@@ -271,20 +296,32 @@ std::unique_ptr<ProtocolBatch> ProtocolPlanner::getNextBatch(int& step_cursor) {
         }
       }
     } else {
-      // Current step is a chain of pulses (n_pulses > 1)
-      if (i_current_candidate != step_cursor) {
-        {
-          // If not first step of current batch, check if batch type is chained
-          // pulses. If not, then current step (a chain of pulses) is start of
-          // next batch
-          if (single_pulse_batch_type) {
-            batch_end = i_current_candidate - 1;  // end of current batch found
+      // Current step is a chain of pulses (n_pulses > 1).
+      if (i_current_candidate == step_cursor) {
+        // If first step of current batch, no flags to set, only led mask
+        led_mask |= (1 << current.led_index);
+      } else {
+        // If not first step of current batch, check if batch type is chained
+        // pulses. If not, then current step (a chain of pulses) is start of
+        // next batch
+        if (single_pulse_batch_type) {
+          batch_end = i_current_candidate - 1;  // end of current batch found
+          break;
+        } else {
+          // If batch type is chained pulses, check if LED index is already
+          // used in this batch
+          if (led_mask & (1 << current.led_index)) {
+            // LED already used in this batch, so end of current batch
+            batch_end = i_current_candidate - 1;
             break;
+          } else {
+            // LED not yet used in this batch, add to mask and continue
+            led_mask |= (1 << current.led_index);
           }
         }
       }
-      i_current_candidate++;
     }
+    i_current_candidate++;
   }
   // Create batch object with correct type
   // Take (unique pointers to) subset of steps from current_step_index to
@@ -306,12 +343,15 @@ std::unique_ptr<ProtocolBatch> ProtocolPlanner::getNextBatch(int& step_cursor) {
   }
   // Create and return batch object
   if (initial_break_type) {
-    return std::make_unique<InitialBreakBatch>(instr, std::move(batch_steps));
+    return std::make_unique<InitialBreakBatch>(instr, std::move(batch_steps),
+                                               logger_ptr);
   }
   if (single_pulse_batch_type) {
-    return std::make_unique<SinglePulsesBatch>(instr, std::move(batch_steps));
+    return std::make_unique<SinglePulsesBatch>(instr, std::move(batch_steps),
+                                               logger_ptr);
   } else {
-    return std::make_unique<PulseChainBatch>(instr, std::move(batch_steps));
+    return std::make_unique<PulseChainBatch>(instr, std::move(batch_steps),
+                                             logger_ptr);
   }
 }
 
@@ -330,7 +370,7 @@ void ProtocolPlanner::setUpDevice() {
             "Fatal error: closing device communication failed");
       }
     } else {
-      logger_ptr->log("TL6WL_setLED_LinearModeValue() successful");
+      logger_ptr->trace("TL6WL_setLED_LinearModeValue() successful");
     }
     // Set all LED brightness to 0%
     err = TL6WL_setLED_HeadBrightness(instr, 0, 0, 0, 0, 0, 0);
@@ -343,7 +383,7 @@ void ProtocolPlanner::setUpDevice() {
             "Fatal error: closing device communication failed");
       }
     } else {
-      logger_ptr->log("TL6WL_setLED_HeadBrightness() successful");
+      logger_ptr->trace("TL6WL_setLED_HeadBrightness() successful");
     }
   } catch (const std::exception& e) {
     const char* err_str = e.what();
@@ -353,7 +393,7 @@ void ProtocolPlanner::setUpDevice() {
     }
   }
   device_set_up = true;
-  logger_ptr->log("Device set up successfully.");
+  logger_ptr->info("Device set up successfully.");
 }
 /*
 Execute the protocol (all batches). This assumes that the device has been set
@@ -373,6 +413,12 @@ void ProtocolPlanner::executeProtocol() {
       batch.setUpThisBatch();
       batch.execute();
       batches_loaded = false;
+      // If total duration > busy duration, sleep for (total - busy)
+      std::chrono::milliseconds total_duration_ms = batch.getTotalDurationMs();
+      std::chrono::milliseconds busy_duration_ms = batch.getBusyDurationMs();
+      if (total_duration_ms > busy_duration_ms) {
+        Timing::precise_sleep_for(total_duration_ms - busy_duration_ms);
+      }
     } else if (batches.size() > 1) {  // TODO: batches cannot be empty
       // Set up first batch
       ProtocolBatch& current_batch = *batches[0];
@@ -383,16 +429,22 @@ void ProtocolPlanner::executeProtocol() {
       // Execute first batch
       current_batch.execute();
       //
-      for (int i_batch = 0; i_batch < batches.size() - 2; i_batch++) {
+      for (size_t i_batch = 0; i_batch + 1 < batches.size(); ++i_batch) {
+        current_batch = *batches[i_batch];
+        next_batch = *batches[i_batch + 1];
         // Set up next batch
         current_batch.setUpNextBatch(next_batch);
         // Execute next batch
         next_batch.execute();
-        // Move to next batch
-        int i_current = i_batch + 1;
-        int i_next = i_batch + 2;
-        current_batch = *batches[i_current];
-        next_batch = *batches[i_next];
+      }
+      // Sleep for (total - busy) duration of last step
+      // if total duration > busy duration
+      std::chrono::milliseconds total_duration_ms =
+          next_batch.getTotalDurationMs();
+      std::chrono::milliseconds busy_duration_ms =
+          next_batch.getBusyDurationMs();
+      if (total_duration_ms > busy_duration_ms) {
+        Timing::precise_sleep_for(total_duration_ms - busy_duration_ms);
       }
     }
   } catch (const std::exception& e) {
@@ -410,19 +462,19 @@ void ProtocolPlanner::shutDownDevice() {
   std::string err_msg;
   try {
     // Turn off device
-    logger_ptr->log("Shutting down LED...");
+    logger_ptr->trace("shutDownDevice()");
     err = TL6WL_setLED_LinearModeValue(instr, 0);
     if (VI_SUCCESS != err) {  // Handle failure to turn off device
       logError(*logger_ptr, "TL6WL_setLED_LinearModeValue", err);
     } else {
-      logger_ptr->log("TL6WL_setLED_LinearModeValue() successful");
+      logger_ptr->trace("TL6WL_setLED_LinearModeValue() successful");
     }
     err = TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE,
                                        VI_FALSE, VI_FALSE, VI_FALSE);
     if (VI_SUCCESS != err) {  // Handle failure to turn off LEDs
       logError(*logger_ptr, "TL6WL_setLED_HeadPowerStates", err);
     } else {
-      logger_ptr->log("TL6WL_setLED_HeadPowerStates() successful");
+      logger_ptr->trace("TL6WL_setLED_HeadPowerStates() successful");
     }
     err = TL6WL_close(instr);
     if (VI_SUCCESS != err) {  // Handle failure to close device communication
@@ -430,10 +482,10 @@ void ProtocolPlanner::shutDownDevice() {
       throw std::runtime_error(
           "Fatal error: closing device communication failed");
     } else {
-      logger_ptr->log("TL6WL_close() successful");
+      logger_ptr->trace("TL6WL_close() successful");
     }
     device_set_up = false;
-    logger_ptr->log("Device shut down successfully.");
+    logger_ptr->trace("shutDownDevice() done.");
   } catch (const std::exception& e) {
     const char* err_str = e.what();
     if (err_str == nullptr) {
@@ -441,4 +493,54 @@ void ProtocolPlanner::shutDownDevice() {
     }
     throw std::runtime_error(err_str);
   }
+}
+
+/*
+Return the protocol planner as a string (char array). The caller is responsible
+for deleting the returned char array.
+prefix: prefix for the first line (describing the whole protocol), e.g. "\t"
+batch_level_prefix: prefix for each batch line only, e.g. "\t\t"
+step_level_prefix: prefix for each step level line, e.g. "\t\t\t"
+*/
+char* ProtocolPlanner::toChars(const std::string& prefix,
+                               const std::string& batch_level_prefix,
+                               const std::string& step_level_prefix) {
+  // Get all the toChars() functions of the constituent batches, return single
+  // chars separated by \n
+  // TODO: implement the toChars() functions, add a (global constant)
+  // BATCH_TOCHARS_BUFFERSIZE. Then use this in the implementations, and here
+  // define the bufferSize accordingly as a multiple
+  //
+  // Calculate the required buffer size
+  const int bufferSize =
+      Constants::PROTOCOL_PLANNER_HEADER_CHARS_BUFFERSIZE + prefix.length() +
+      batches.size() * (Constants::BATCH_HEADER_CHARS_BUFFERSIZE +
+                        batch_level_prefix.length()) +
+      steps.size() *
+          (Constants::STEP_CHARS_BUFFERSIZE +
+           step_level_prefix
+               .length());  // +1 \t for batch level, +2 for \t\t at step level
+  char* pPlannerChars = new char[bufferSize];
+
+  std::snprintf(pPlannerChars, bufferSize,
+                "%sProtocol with %zu batch(es), %zu step(s):\n", prefix.c_str(), batches.size(),
+                n_steps);
+
+  // Loop over batches, use their toChars() functions
+  for (auto& batch : batches) {
+    char* batchChars = batch->toChars(batch_level_prefix, step_level_prefix);
+    // Use strncat_s if available, otherwise use strncat with bounds checking
+#ifdef _MSC_VER  // Check if compiling with Microsoft Visual Studio
+    strncat_s(pPlannerChars, bufferSize, batchChars,
+              bufferSize - std::strlen(pPlannerChars) - 1);
+    strncat_s(pPlannerChars, bufferSize, "\n",
+              bufferSize - std::strlen(pPlannerChars) - 1);
+#else
+    strncat(plannerChars, batchChars,
+            bufferSize - std::strlen(plannerChars) - 1);
+    strncat(plannerChars, "\n", bufferSize - std::strlen(plannerChars) - 1);
+#endif
+    delete[] batchChars;
+  }
+  return pPlannerChars;
 }

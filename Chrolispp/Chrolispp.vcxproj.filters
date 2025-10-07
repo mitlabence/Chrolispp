@@ -104,5 +104,8 @@
     <ClInclude Include="include\SinglePulsesBatch.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\constants.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

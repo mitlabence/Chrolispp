@@ -6,13 +6,16 @@
 
 class SinglePulsesBatch : public ProtocolBatch {
  public:
-  SinglePulsesBatch(ViSession instr, const std::vector<ProtocolStep>& steps);
+  SinglePulsesBatch(ViSession instr, const std::vector<ProtocolStep>& steps,
+                    Logger* logger_ptr);
 
   std::chrono::milliseconds getBusyDurationMs() const override;
   std::chrono::milliseconds getTotalDurationMs() const override;
   std::chrono::microseconds execute() override;
   void setUpNextBatch(ProtocolBatch& next_batch) override;
   void setUpThisBatch() override;
+  char* toChars(const std::string& prefix,
+                const std::string& step_level_prefix) override;
 
  private:
   int led_mask = 0;  // bit mask of all used LEDs in protocol

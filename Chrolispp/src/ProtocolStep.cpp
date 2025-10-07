@@ -3,6 +3,7 @@
 #include <cstring>  // Include for strcpy
 #include <iostream>
 
+#include "constants.hpp"
 // Constructor definition
 ProtocolStep::ProtocolStep(ViUInt16 led_index, ViUInt32 pulse_width_ms,
                            ViUInt32 time_between_pulses_ms, ViUInt32 n_pulses,
@@ -84,25 +85,24 @@ void ProtocolStep::printStep() {
   }
 }
 
-char* ProtocolStep::stepToChars() {
+char* ProtocolStep::toChars(const std::string& prefix) {
   // Calculate the required buffer size
-  const int bufferSize =
-      200;  // Adjust this size based on your actual requirements
+  const int bufferSize = Constants::STEP_CHARS_BUFFERSIZE;
   char* stepChars = new char[bufferSize];
 
   // Format the string into the buffer
   if (pulse_width_ms == 0) {
-    std::snprintf(stepChars, bufferSize, "Break, duration: %d ms",
+    std::snprintf(stepChars, bufferSize, "%sBreak, duration: %d ms", prefix.c_str(),
                   time_between_pulses_ms);
   } else if (brightness == 0) {
-    std::snprintf(stepChars, bufferSize, "Break, duration: %d ms",
+    std::snprintf(stepChars, bufferSize, "%sBreak, duration: %d ms", prefix.c_str(),
                   pulse_width_ms + time_between_pulses_ms);
   } else {
     std::snprintf(
         stepChars, bufferSize,
-        "LED index: %d, Pulse width: %d ms, Time between pulses: %d ms, "
+        "%sLED index: %d, Pulse width: %d ms, Time between pulses: %d ms, "
         "Number of pulses: %d, Brightness: %d",
-        led_index, pulse_width_ms, time_between_pulses_ms, n_pulses,
+        prefix.c_str(), led_index, pulse_width_ms, time_between_pulses_ms, n_pulses,
         brightness);
   }
   return stepChars;

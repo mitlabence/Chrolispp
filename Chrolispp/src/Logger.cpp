@@ -1,5 +1,7 @@
 #include "Logger.hpp"
-
+// TODO: I think right now, all access is synchronous, so no need for mutexes.
+// But if ever the possibility of async logging arises, need to implement a
+// parallel-compatible (concurrent) queue and a separate writing
 Logger::Logger(const std::string& filename) {
   logFile.open(filename, std::ios::out | std::ios::app);
   if (!logFile.is_open()) {
@@ -13,19 +15,41 @@ Logger::~Logger() {
   }
 }
 
-void Logger::log(const std::string& message) {
-  logFile << getTimestamp() << " - " << message << std::endl;
+void Logger::trace(const std::string& message) {
+  logFile << getTimestamp() << "\t[TRACE]\t\t" << message << std::endl;
 }
 
 void Logger::error(const std::string& message) {
-  logFile << getTimestamp() << " ERROR: " << message << std::endl;
+  logFile << getTimestamp() << "\t[ERROR]\t" << message << std::endl;
 }
 void Logger::info(const std::string& message) {
-  logFile << getTimestamp() << " INFO: " << message << std::endl;
+  logFile << getTimestamp() << "\t[INFO]\t" << message << std::endl;
+}
+
+void Logger::multiLineInfo(char* msg) {
+  std::istringstream stream(msg);
+  std::string line;
+
+  while (std::getline(stream, line)) {
+    info(line);  // Each line gets its own timestamp
+  }
+}
+
+void Logger::multiLineProtocol(char* msg) {
+  std::istringstream stream(msg);
+  std::string line;
+
+  while (std::getline(stream, line)) {
+    protocol(line);  // Each line gets its own timestamp
+  }
+}
+
+void Logger::protocol(const std::string& message) {
+  logFile << getTimestamp() << "\t[PROTOCOL]\t" << message << std::endl;
 }
 
 void Logger::warning(const std::string& message) {
-  logFile << getTimestamp() << " WARNING: " << message << std::endl;
+  logFile << getTimestamp() << "\t[WARNING]\t" << message << std::endl;
 }
 
 std::string Logger::getTimestamp() {

@@ -1,9 +1,12 @@
 #include "SinglePulsesBatch.hpp"
+
 #include "TL6WL.h"
 #include "Timing.hpp"
+#include "constants.hpp"
 SinglePulsesBatch::SinglePulsesBatch(ViSession instr,
-                                     const std::vector<ProtocolStep>& steps)
-    : ProtocolBatch(instr, steps) {
+                                     const std::vector<ProtocolStep>& steps,
+                                     Logger* logger_ptr)
+    : ProtocolBatch(instr, steps, logger_ptr) {
   if (steps.empty()) {
     throw std::invalid_argument("No protocol steps provided.");
   }
@@ -39,6 +42,11 @@ std::chrono::milliseconds SinglePulsesBatch::getTotalDurationMs() const {
 }
 
 std::chrono::microseconds SinglePulsesBatch::execute() {
+  logger_ptr->trace("SinglePulsesBatch execute()");
+  if (executed) {
+    throw std::logic_error(
+        "SinglePulsesBatch: attempting to execute already executed batch.");
+  }
   // Loop over steps, set up LED power states and brightness for each step.
   auto start = std::chrono::high_resolution_clock::now();
   ViStatus err;
@@ -50,15 +58,19 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
   // Set up LED head brightness values
   led_brightness[led_index] = brightness;
   int i_step = 0;
-  for (const auto& step : protocol_steps) {
-    // Step 1 has already been set up when setUpThisBatch() was called
+  for (auto& step : protocol_steps) {
+    char* chs = step.toChars("");
+    logger_ptr->protocol(std::string("Executing step #") +
+                     std::to_string(i_step + 1) + " in batch: " + chs);
+    // Step 1 brightnesses have already been set up when setUpThisBatch() was
+    // called
     if (i_step > 0) {
       // Turn off previous LED
       led_states[led_index] = VI_FALSE;
       led_brightness[led_index] = 0;
       // Set up current LED
-      led_index = protocol_steps[i_step].led_index;
-      brightness = protocol_steps[i_step].brightness;
+      led_index = step.led_index;
+      brightness = step.brightness;
       led_states[led_index] = VI_TRUE;
       led_brightness[led_index] = brightness;
       // Set up LED head brightnesses
@@ -66,27 +78,59 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
           instr, led_brightness[0], led_brightness[1], led_brightness[2],
           led_brightness[3], led_brightness[4], led_brightness[5]);
       if (VI_SUCCESS != err) {
+        logger_ptr->error(
+            "SinglePulsesBatch::execute(): Error setting LED head brightness.");
         throw std::runtime_error(
             "SinglePulsesBatch::execute(): Error setting LED head brightness.");
       }
+    } else {  // first step, brightness has been set up already
+      led_index = step.led_index;
+      led_states[led_index] = VI_TRUE;
     }
     // Set up LED head states
     err = TL6WL_setLED_HeadPowerStates(instr, led_states[0], led_states[1],
                                        led_states[2], led_states[3],
                                        led_states[4], led_states[5]);
+
     if (VI_SUCCESS != err) {
+      logger_ptr->error(
+          "SinglePulsesBatch::execute(): Error setting LED head power states.");
       throw std::runtime_error(
           "SinglePulsesBatch::execute(): Error setting LED head power states.");
     }
-    Timing::precise_sleep_for(
-        std::chrono::milliseconds(step.time_between_pulses_ms));
+    Timing::precise_sleep_for(std::chrono::milliseconds(step.pulse_width_ms));
+    int break_duration_ms = step.time_between_pulses_ms;
+    if (break_duration_ms > 0) {  // if there is a break, need to turn off LED
+      // Turn off current LED
+      led_states[led_index] = VI_FALSE;
+      led_brightness[led_index] = 0;
+      logger_ptr->trace("Trying to shut down head power states...");
+      err = TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE,
+                                         VI_FALSE, VI_FALSE, VI_FALSE);
+      if (VI_SUCCESS != err) {
+        logger_ptr->error(
+            "SinglePulsesBatch::execute(): Error setting LED head power "
+            "states.");
+        throw std::runtime_error(
+            "SinglePulsesBatch::execute(): Error setting LED head power "
+            "states.");
+      }
+      Timing::precise_sleep_for(std::chrono::milliseconds(break_duration_ms));
+    }
     i_step++;
   }
+  executed = true;
+  logger_ptr->trace("SinglePulsesBatch execute() done.");
   auto end = std::chrono::high_resolution_clock::now();
-  return std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  auto actual_duration_us =
+      std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  busy_duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+      actual_duration_us);  // update actual busy duration
+  return actual_duration_us;
 }
 
 void SinglePulsesBatch::setUpNextBatch(ProtocolBatch& next_batch) {
+  logger_ptr->trace("SinglePulsesBatch setUpNextBatch()");
   // TODO: avoid repeating this code in other implementations of ProtocolBatch
   if (!executed) {
     throw std::logic_error(
@@ -104,9 +148,11 @@ void SinglePulsesBatch::setUpNextBatch(ProtocolBatch& next_batch) {
   if (duration < total_duration_ms - busy_duration_ms) {
     Timing::precise_sleep_for(total_duration_ms - busy_duration_ms - duration);
   }
+  logger_ptr->trace("SinglePulsesBatch setUpNextBatch() done.");
 }
 
 void SinglePulsesBatch::setUpThisBatch() {
+  logger_ptr->trace("SinglePulsesBatch setUpThisBatch()");
   int brightness = protocol_steps[0].brightness;
   int led_index = protocol_steps[0].led_index;
   // Set up LED head brightness values
@@ -120,4 +166,11 @@ void SinglePulsesBatch::setUpThisBatch() {
         "SinglePulsesBatch::setUpThisBatch(): Error setting LED head "
         "brightness.");
   }
+  logger_ptr->trace("SinglePulsesBatch setUpThisBatch() done.");
+}
+
+char* SinglePulsesBatch::toChars(const std::string& prefix,
+                                 const std::string& step_level_prefix) {
+  return ProtocolBatch::batchToChars("SinglePulsesBatch", prefix,
+                                     step_level_prefix);
 }

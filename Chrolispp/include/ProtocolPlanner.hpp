@@ -23,6 +23,9 @@ class ProtocolPlanner {
   const std::vector<ProtocolStep>& getSteps() const { return steps; }
   void setUpDevice();
   void executeProtocol();
+  char* toChars(const std::string& prefix,
+                const std::string& batch_level_prefix,
+                const std::string& step_level_prefix);
 
  private:
   ViSession instr;
@@ -30,7 +33,7 @@ class ProtocolPlanner {
   bool device_set_up = false;
   int i_next_batch_to_execute = 0;
   std::vector<ProtocolStep> steps;
-  int n_steps;
+  size_t n_steps;
   std::unique_ptr<ProtocolBatch> getNextBatch(int& step_cursor);
   ValidationResult validateStep(ProtocolStep& step);
   Logger* logger_ptr;

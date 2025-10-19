@@ -23,11 +23,14 @@ this software. Any number of single pulses can be in one batch, even if they
 #ifndef PROTOCOL_BATCH_HPP
 #define PROTOCOL_BATCH_HPP
 #include <chrono>
-#include <vector>
+#include <optional>
 #include <string>
-#include "constants.hpp"
+#include <vector>
+
+#include "ArduinoResources.hpp"
 #include "Logger.hpp"
 #include "ProtocolStep.hpp"
+#include "constants.hpp"
 /*
  Usage:
  - Create a derived class from ProtocolBatch, implementing the pure virtual
@@ -59,18 +62,25 @@ this software. Any number of single pulses can be in one batch, even if they
 */
 class ProtocolBatch {
  public:
-  ProtocolBatch(ViSession instr, const std::vector<ProtocolStep>& steps,
-                Logger* logger_ptr)
-      : instr(instr),
+  ProtocolBatch(unsigned short batch_id, ViSession instr,
+                const std::vector<ProtocolStep>& steps, Logger* logger_ptr,
+                std::optional<std::reference_wrapper<ArduinoResources>>
+                    arduinoResources = std::nullopt)
+      : batch_id(batch_id),
+        instr(instr),
         logger_ptr(logger_ptr),
         protocol_steps(steps),
         busy_duration_ms(0),
-        total_duration_ms(0) {};
+        total_duration_ms(0),
+        arduinoResources_(arduinoResources) {};
   virtual ~ProtocolBatch() = default;
 
   virtual std::chrono::milliseconds getBusyDurationMs() const = 0;
   virtual std::chrono::milliseconds getTotalDurationMs() const = 0;
   virtual std::chrono::microseconds execute() = 0;
+  unsigned short getBatchId() const { return batch_id; }
+  std::string getBatchType() const { return batch_type; }
+
   /*
   set_up_next_batch() should be called after execute(), in the time between
   busy_duration_ms elapsed and the total total_duration_ms. It should set up
@@ -87,12 +97,17 @@ class ProtocolBatch {
                         const std::string& step_level_prefix) = 0;
 
  protected:
+  unsigned short batch_id;  // number of different ids is 65535
+  std::string batch_type;   // type of batch, e.g. InitialBreakBatch,
+                            // PulseChainBatch, SinglePulsesBatch
   ViSession instr;
   Logger* logger_ptr;
   std::vector<ProtocolStep> protocol_steps;
   std::chrono::milliseconds busy_duration_ms;
   std::chrono::milliseconds total_duration_ms;
-  bool execute_attempted = false;  // Block running execute() more than once (even if execute() did not succeed)
+  bool execute_attempted = false;  // Block running execute() more than once
+                                   // (even if execute() did not succeed)
+  std::optional<std::reference_wrapper<ArduinoResources>> arduinoResources_;
   /*
   Convert batch to printable chars message.
   The caller is responsible for deleting the returned char array.
@@ -100,17 +115,20 @@ class ProtocolBatch {
   prefix: prefix only for the first line (describing the batch), e.g. "\t"
   step_level_prefix: prefix for each step line, e.g. "\t\t"
   */
-  char* batchToChars(const std::string& batchName, const std::string& prefix, const std::string& step_level_prefix) {
+  char* batchToChars(const std::string& batchName, const std::string& prefix,
+                     const std::string& step_level_prefix) {
     const int buffer_size =
         Constants::BATCH_HEADER_CHARS_BUFFERSIZE + prefix.length() +
         protocol_steps.size() *
             (Constants::STEP_CHARS_BUFFERSIZE + step_level_prefix.length());
     char* batchChars = new char[buffer_size];
-    std::snprintf(batchChars, buffer_size, "%s%s with %zu step(s):\n", prefix.c_str(),
-                  batchName.c_str(), protocol_steps.size());
+    std::snprintf(batchChars, buffer_size, "%s%s (id %hu) with %zu step(s):\n",
+                  prefix.c_str(), batchName.c_str(), batch_id,
+                  protocol_steps.size());
     for (auto& step : protocol_steps) {
       char* stepChars = step.toChars(step_level_prefix);
-      // Use strncat_s if available, otherwise use strncat with bounds checking
+      // Use strncat_s if available, otherwise use strncat with bounds
+      // checking
 #ifdef _MSC_VER  // Check if compiling with Microsoft Visual Studio
       // strncat_s the step level prefix first
       strncat_s(batchChars, buffer_size, stepChars,

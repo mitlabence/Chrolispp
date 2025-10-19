@@ -36,9 +36,6 @@
     <ClCompile Include="src\PulseChainBatch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\SinglePulsesBatch.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\ArduinoCommands.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -101,10 +98,10 @@
     <ClInclude Include="include\LEDFunctions.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\SinglePulsesBatch.hpp">
+    <ClInclude Include="include\constants.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\constants.hpp">
+    <ClInclude Include="include\ArduinoResources.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

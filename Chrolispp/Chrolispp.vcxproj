@@ -20,15 +20,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ArduinoCommands.hpp" />
+    <ClInclude Include="include\ArduinoResources.hpp" />
     <ClInclude Include="include\COMFunctions.hpp" />
     <ClInclude Include="include\constants.hpp" />
-    <ClInclude Include="include\SinglePulsesBatch.hpp" />
     <ClCompile Include="src\ArduinoCommands.cpp" />
     <ClCompile Include="src\InitialBreakBatch.cpp" />
     <ClCompile Include="src\Chrolispp.cpp" />
     <ClCompile Include="src\COMFunctions.cpp" />
     <ClCompile Include="src\LEDFunctions.cpp" />
-    <ClCompile Include="src\SinglePulsesBatch.cpp" />
     <ClCompile Include="src\Logger.cpp" />
     <ClCompile Include="src\ProtocolPlanner.cpp" />
     <ClCompile Include="src\ProtocolStep.cpp" />

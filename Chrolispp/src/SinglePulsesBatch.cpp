@@ -3,10 +3,11 @@
 #include "TL6WL.h"
 #include "Timing.hpp"
 #include "constants.hpp"
-SinglePulsesBatch::SinglePulsesBatch(ViSession instr,
-                                     const std::vector<ProtocolStep>& steps,
-                                     Logger* logger_ptr)
-    : ProtocolBatch(instr, steps, logger_ptr) {
+SinglePulsesBatch::SinglePulsesBatch(unsigned short batch_id, ViSession instr,
+                                     const std::vector<ProtocolStep>& steps, Logger* logger_ptr,
+    std::optional<std::reference_wrapper<ArduinoResources>> arduinoResources =
+        std::nullopt)
+    : ProtocolBatch(batch_id, instr, steps, logger_ptr, arduinoResources) {
   if (steps.empty()) {
     throw std::invalid_argument("No protocol steps provided.");
   }
@@ -32,6 +33,7 @@ SinglePulsesBatch::SinglePulsesBatch(ViSession instr,
   total_duration_ms = std::chrono::milliseconds(total_ms);
 
   protocol_steps = steps;
+  batch_type = "SinglePulsesBatch";
 }
 std::chrono::milliseconds SinglePulsesBatch::getBusyDurationMs() const {
   return busy_duration_ms;
@@ -143,11 +145,6 @@ std::chrono::microseconds SinglePulsesBatch::execute() {
         "SinglePulsesBatch::execute(): Error setting LED head brightness to 0 "
         "after pulse chain.");
   }
-  err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, false);
-  if (VI_SUCCESS != err) {
-    throw std::runtime_error(
-        "SinglePulsesBatch::execute(): Error stopping signal generator.");
-  }
   logger_ptr->trace("SinglePulsesBatch::execute() done.");
   auto end = std::chrono::high_resolution_clock::now();
   auto actual_duration_us =
@@ -199,6 +196,6 @@ void SinglePulsesBatch::setUpThisBatch() {
 
 char* SinglePulsesBatch::toChars(const std::string& prefix,
                                  const std::string& step_level_prefix) {
-  return ProtocolBatch::batchToChars("SinglePulsesBatch", prefix,
+  return ProtocolBatch::batchToChars(batch_type, prefix,
                                      step_level_prefix);
 }

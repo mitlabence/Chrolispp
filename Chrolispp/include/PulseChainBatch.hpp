@@ -5,10 +5,23 @@
 #include "Logger.hpp"
 #include "ProtocolBatch.hpp"
 
+/*
+PulseChainBatch: Executes a series of steps with no configuration necessary
+in-between. The steps must
+1. Each have a different LED index (or be a break)
+2. Each may have 1 or more pulses (n_pulses >= 1) if not a break
+3. There must be a time between pulses that is > 0 (i.e. no "gapless pulses";
+for this, GaplessPulseBatch must be used)
+4. A break may only occur at the end of the batch (i.e. the last step may be a
+break)
+*/
+
 class PulseChainBatch : public ProtocolBatch {
  public:
-  PulseChainBatch(ViSession instr, const std::vector<ProtocolStep>& steps,
-                  Logger* logger_ptr);
+  PulseChainBatch(unsigned short batch_id, ViSession instr,
+                  const std::vector<ProtocolStep>& steps, Logger* logger_ptr,
+                  std::optional<std::reference_wrapper<ArduinoResources>>
+                      arduinoResources = std::nullopt);
 
   std::chrono::milliseconds getBusyDurationMs() const override;
   std::chrono::milliseconds getTotalDurationMs() const override;
@@ -20,6 +33,7 @@ class PulseChainBatch : public ProtocolBatch {
 
  private:
   int led_mask = 0;
+  bool has_trailing_break = false;  // Whether there
 };
 
 #endif  // PULSE_CHAIN_BATCH_HPP

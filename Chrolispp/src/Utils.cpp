@@ -1,15 +1,17 @@
-#include <string>
 #include <shlobj.h>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include "ProtocolStep.hpp"
-#include <windows.h>
 #include <shobjidl.h>
-#include <iomanip>
+#include <windows.h>
+
 #include <chrono>
 #include <ctime>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "ProtocolStep.hpp"
 
 std::string BrowseCSV() {
   TCHAR szFile[MAX_PATH] = {0};
@@ -31,7 +33,6 @@ std::string BrowseCSV() {
 
   return "";
 }
-
 
 std::string SelectFolderAndSuggestFile(const std::string& suggested_fname) {
   HRESULT hr =
@@ -84,12 +85,10 @@ std::string SelectFolderAndSuggestFile(const std::string& suggested_fname) {
   return result;
 }
 
-
-
 std::vector<ProtocolStep> readProtocolCSV(const std::string& filePath) {
   std::vector<ProtocolStep> protocolSteps;
   std::ifstream file(filePath);
-  unsigned short i_row = 0;
+  unsigned short i_step = 1; // Start with 1 for incremental ID starting with 1 (i.e. first step will be step 1 and not step 0)
   if (!file.is_open()) {
     std::cerr << "Error opening file: " << filePath << std::endl;
     return protocolSteps;
@@ -116,16 +115,15 @@ std::vector<ProtocolStep> readProtocolCSV(const std::string& filePath) {
 
     // Ensure there are exactly 5 values read
     if (row.size() == 5) {
-      ProtocolStep step(i_row, row[0], row[1], row[2], row[3], row[4]);
+      ProtocolStep step(i_step, row[0], row[1], row[2], row[3], row[4]);
       protocolSteps.push_back(step);
+      i_step++;
     }
-    i_row++;
   }
 
   file.close();
   return protocolSteps;
 }
-
 
 bool isCSVFile(const std::string& filePath) {
   // Check if the filePath ends with ".csv"
@@ -152,7 +150,6 @@ std::string generateLogFileName(const std::string& prefix) {
   return prefix + getCurrentDateTime() + ".log";
 }
 
-
 void showOpenCSVInstructions() {
   std::cout << "Choose the CSV file with the protocol. Each row should have "
                "five entries:\n"
@@ -164,19 +161,18 @@ void showOpenCSVInstructions() {
 }
 
 void intToCharArray(int number, char* charArray, size_t bufferSize) {
-    // Convert integer to string
-    std::string numberString = std::to_string(number);
+  // Convert integer to string
+  std::string numberString = std::to_string(number);
 
-    // Ensure the buffer is large enough
-    if (numberString.length() < bufferSize) {
-        // Manually copy each character
-        for (size_t i = 0; i < numberString.length(); ++i) {
-            charArray[i] = numberString[i];
-        }
-        // Add the null terminator
-        charArray[numberString.length()] = '\0';
+  // Ensure the buffer is large enough
+  if (numberString.length() < bufferSize) {
+    // Manually copy each character
+    for (size_t i = 0; i < numberString.length(); ++i) {
+      charArray[i] = numberString[i];
     }
-    else {
-        std::cerr << "Buffer size is too small to hold the number" << std::endl;
-    }
+    // Add the null terminator
+    charArray[numberString.length()] = '\0';
+  } else {
+    std::cerr << "Buffer size is too small to hold the number" << std::endl;
+  }
 }

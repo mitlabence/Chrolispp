@@ -1,9 +1,12 @@
 #ifndef PROTOCOL_PLANNER_HPP
 #define PROTOCOL_PLANNER_HPP
+
 #include <Windows.h>
 
+#include <optional>
 #include <vector>
 
+#include "ArduinoResources.hpp"
 #include "Logger.hpp"
 #include "ProtocolBatch.hpp"
 #include "ProtocolStep.hpp"
@@ -19,7 +22,9 @@ enum ValidationResult {
 class ProtocolPlanner {
  public:
   ProtocolPlanner(ViSession instr, std::vector<ProtocolStep> protocolSteps,
-                  Logger* logger_ptr);
+                  Logger* logger_ptr,
+                  std::optional<std::reference_wrapper<ArduinoResources>>
+                      arduinoResources = std::nullopt);
   const std::vector<ProtocolStep>& getSteps() const { return steps; }
   void setUpDevice();
   void executeProtocol();
@@ -34,9 +39,11 @@ class ProtocolPlanner {
   int i_next_batch_to_execute = 0;
   std::vector<ProtocolStep> steps;
   size_t n_steps;
-  std::unique_ptr<ProtocolBatch> getNextBatch(int& step_cursor);
-  ValidationResult validateStep(ProtocolStep& step);
   Logger* logger_ptr;
+  std::optional<std::reference_wrapper<ArduinoResources>> arduinoResources_;
+  std::unique_ptr<ProtocolBatch> getNextBatch(unsigned short batch_id,
+                                              int& step_cursor);
+  ValidationResult validateStep(ProtocolStep& step);
   void shutDownDevice();
 
   std::vector<std::unique_ptr<ProtocolBatch>> batches;

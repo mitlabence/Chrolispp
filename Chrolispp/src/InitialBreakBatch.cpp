@@ -5,10 +5,12 @@
 #include "Logger.hpp"
 #include "Timing.hpp"
 #include "constants.hpp"
-InitialBreakBatch::InitialBreakBatch(ViSession instr,
-                                     const std::vector<ProtocolStep>& steps,
-                                     Logger* logger_ptr)
-    : ProtocolBatch(instr, steps, logger_ptr) {
+
+InitialBreakBatch::InitialBreakBatch(
+    unsigned short batch_id, ViSession instr,
+    const std::vector<ProtocolStep>& steps, Logger* logger_ptr,
+    std::optional<std::reference_wrapper<ArduinoResources>> arduinoResources)
+    : ProtocolBatch(batch_id, instr, steps, logger_ptr, arduinoResources) {
   if (steps.empty()) {
     throw std::invalid_argument("No protocol steps provided.");
   }
@@ -20,6 +22,7 @@ InitialBreakBatch::InitialBreakBatch(ViSession instr,
       std::chrono::milliseconds(0);  // LED is not busy during a break
   total_duration_ms =
       std::chrono::milliseconds(steps[0].time_between_pulses_ms);
+  batch_type = "InitialBreakBatch";
 }
 
 std::chrono::milliseconds InitialBreakBatch::getBusyDurationMs() const {
@@ -79,6 +82,8 @@ void InitialBreakBatch::setUpThisBatch() {
 
 #include <cstring>  // Ensure this header is included for string manipulation functions
 
-char* InitialBreakBatch::toChars(const std::string& prefix, const std::string& step_level_prefix) {
-  return ProtocolBatch::batchToChars("InitialBreakBatch", prefix, step_level_prefix);
+char* InitialBreakBatch::toChars(const std::string& prefix,
+                                 const std::string& step_level_prefix) {
+  return ProtocolBatch::batchToChars("InitialBreakBatch", prefix,
+                                     step_level_prefix);
 }

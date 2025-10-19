@@ -3,11 +3,10 @@
 #include "Timing.hpp"
 #include "constants.hpp"
 
-PulseChainBatch::PulseChainBatch(
-    unsigned short batch_id, ViSession instr,
-    const std::vector<ProtocolStep>& steps, Logger* logger_ptr,
-    std::optional<std::reference_wrapper<ArduinoResources>> arduinoResources)
-    : ProtocolBatch(batch_id, instr, steps, logger_ptr, arduinoResources) {
+PulseChainBatch::PulseChainBatch(unsigned short batch_id, ViSession instr,
+                                 const std::vector<ProtocolStep>& steps,
+                                 Logger* logger_ptr)
+    : ProtocolBatch(batch_id, instr, steps, logger_ptr) {
   if (steps.empty()) {
     throw std::invalid_argument("No protocol steps provided.");
   }
@@ -83,35 +82,8 @@ std::chrono::microseconds PulseChainBatch::execute() {
     throw std::runtime_error(
         "PulseChainBatch::execute(): Error starting signal generator.");
   }
-  if (arduinoResources_) {
-    // If Arduino resources are provided, send brightness values to Arduino
-    int i_step = 0;
-    for (const auto& step : protocol_steps) {
-      // Get total duration and brightness for step
-      int brightness = step.brightness;
-      int duration_ms = step.getTotalDurationMs();
-      // Send to Arduino
-      std::lock_guard<std::mutex> lock(
-          arduinoResources_->get().arduinoMsgMutex);
-      arduinoResources_->get().arduinoMsgQueue.push(brightness);
-      arduinoResources_->get().arduinoMsgCV.notify_one();
-      // Only wait for rest of busy duration after setting last step
-      if (i_step != static_cast<int>(protocol_steps.size()) - 1) {
-        Timing::precise_sleep_for(std::chrono::milliseconds(duration_ms));
-      } else {
-        auto now = std::chrono::high_resolution_clock::now();
-        auto elapsed =
-            std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
-        if (elapsed < busy_duration_ms) {
-          Timing::precise_sleep_for(busy_duration_ms -
-                                    elapsed);  // wait remaining busy time
-        }
-      }
-      i_step++;
-    }
-  } else {
-    Timing::precise_sleep_for(busy_duration_ms);
-  }
+
+  Timing::precise_sleep_for(busy_duration_ms);
   logger_ptr->trace("PulseChainBatch execute() done.");
   if (has_trailing_break) {  // turn off LEDs to make sure set up of next batch
                              // does not affect light output

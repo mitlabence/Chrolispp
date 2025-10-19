@@ -27,7 +27,6 @@ this software. Any number of single pulses can be in one batch, even if they
 #include <string>
 #include <vector>
 
-#include "ArduinoResources.hpp"
 #include "Logger.hpp"
 #include "ProtocolStep.hpp"
 #include "constants.hpp"
@@ -63,16 +62,13 @@ this software. Any number of single pulses can be in one batch, even if they
 class ProtocolBatch {
  public:
   ProtocolBatch(unsigned short batch_id, ViSession instr,
-                const std::vector<ProtocolStep>& steps, Logger* logger_ptr,
-                std::optional<std::reference_wrapper<ArduinoResources>>
-                    arduinoResources = std::nullopt)
+                const std::vector<ProtocolStep>& steps, Logger* logger_ptr)
       : batch_id(batch_id),
         instr(instr),
         logger_ptr(logger_ptr),
         protocol_steps(steps),
         busy_duration_ms(0),
-        total_duration_ms(0),
-        arduinoResources_(arduinoResources) {};
+        total_duration_ms(0) {};
   virtual ~ProtocolBatch() = default;
 
   virtual std::chrono::milliseconds getBusyDurationMs() const = 0;
@@ -107,7 +103,6 @@ class ProtocolBatch {
   std::chrono::milliseconds total_duration_ms;
   bool execute_attempted = false;  // Block running execute() more than once
                                    // (even if execute() did not succeed)
-  std::optional<std::reference_wrapper<ArduinoResources>> arduinoResources_;
   /*
   Convert batch to printable chars message.
   The caller is responsible for deleting the returned char array.

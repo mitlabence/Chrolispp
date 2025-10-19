@@ -6,7 +6,7 @@
 #include <optional>
 #include <vector>
 
-#include "ArduinoResources.hpp"
+#include "ArduinoCommands.hpp"
 #include "Logger.hpp"
 #include "ProtocolBatch.hpp"
 #include "ProtocolStep.hpp"
@@ -22,9 +22,7 @@ enum ValidationResult {
 class ProtocolPlanner {
  public:
   ProtocolPlanner(ViSession instr, std::vector<ProtocolStep> protocolSteps,
-                  Logger* logger_ptr,
-                  std::optional<std::reference_wrapper<ArduinoResources>>
-                      arduinoResources = std::nullopt);
+                  Logger* logger_ptr, std::optional<HANDLE> h_Serial);
   const std::vector<ProtocolStep>& getSteps() const { return steps; }
   void setUpDevice();
   void executeProtocol();
@@ -36,18 +34,21 @@ class ProtocolPlanner {
   ViSession instr;
   bool batches_loaded = false;
   bool device_set_up = false;
+  bool useArduino_;
   int i_next_batch_to_execute = 0;
   std::vector<ProtocolStep> steps;
   size_t n_steps;
   Logger* logger_ptr;
-  std::optional<std::reference_wrapper<ArduinoResources>> arduinoResources_;
+  std::optional<HANDLE> h_Serial;
   std::unique_ptr<ProtocolBatch> getNextBatch(unsigned short batch_id,
                                               int& step_cursor);
   ValidationResult validateStep(ProtocolStep& step);
   void shutDownDevice();
-
+  std::vector<ArduinoDataPacket> arduino_data_packets_;
   std::vector<std::unique_ptr<ProtocolBatch>> batches;
   void mergeSteps(std::vector<ProtocolStep>& protocolSteps);
   std::vector<std::unique_ptr<ProtocolBatch>> translateToBatches();
+  void createArduinoDataPackets(int dac_resolution_bits);
+  void sendDataPacketsToArduino(int dac_resolution_bits);
 };
 #endif  // PROTOCOL_PLANNER_HPP

@@ -6,11 +6,10 @@
 #include "Timing.hpp"
 #include "constants.hpp"
 
-InitialBreakBatch::InitialBreakBatch(
-    unsigned short batch_id, ViSession instr,
-    const std::vector<ProtocolStep>& steps, Logger* logger_ptr,
-    std::optional<std::reference_wrapper<ArduinoResources>> arduinoResources)
-    : ProtocolBatch(batch_id, instr, steps, logger_ptr, arduinoResources) {
+InitialBreakBatch::InitialBreakBatch(unsigned short batch_id, ViSession instr,
+                                     const std::vector<ProtocolStep>& steps,
+                                     Logger* logger_ptr)
+    : ProtocolBatch(batch_id, instr, steps, logger_ptr) {
   if (steps.empty()) {
     throw std::invalid_argument("No protocol steps provided.");
   }

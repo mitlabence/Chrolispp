@@ -6,11 +6,11 @@
 #include <stdexcept>
 #include <string_view>
 
+#include "ArduinoCommands.hpp"
 #include "InitialBreakBatch.hpp"
 #include "LEDFunctions.hpp"
 #include "Logger.hpp"
 #include "PulseChainBatch.hpp"
-#include "SinglePulsesBatch.hpp"
 #include "TL6WL.h"
 #include "Timing.hpp"
 #include "constants.hpp"
@@ -25,14 +25,14 @@ static void logError(Logger& logger_ptr, std::string_view func_name,
   }
 }
 // Constructor implementation
-ProtocolPlanner::ProtocolPlanner(
-    ViSession instr, std::vector<ProtocolStep> protocolSteps,
-    Logger* logger_ptr,
-    std::optional<std::reference_wrapper<ArduinoResources>> arduinoResources)
+ProtocolPlanner::ProtocolPlanner(ViSession instr,
+                                 std::vector<ProtocolStep> protocolSteps,
+                                 Logger* logger_ptr,
+                                 std::optional<HANDLE> h_Serial = std::nullopt)
     : instr(instr),
       steps(std::move(protocolSteps)),
       logger_ptr(logger_ptr),
-      arduinoResources_(arduinoResources) {
+      h_Serial(h_Serial) {
   // TODO: for each different wavelength, one can already program the LED
   // machine with calculated delays. If multiple steps with the same
   // wavelength
@@ -90,6 +90,14 @@ ProtocolPlanner::ProtocolPlanner(
     throw std::runtime_error("No batches created from protocol steps.");
   }
   batches_loaded = true;
+  // If using Arduino, create Arduino data packets
+  if (h_Serial) {
+    logger_ptr->trace("Sending RESET to Arduino.");
+    sendCommandToArduino(h_Serial.value(),
+                         RESET);  // Reset before writing steps
+    createArduinoDataPackets(Constants::DAC_RESOLUTION_BITS);
+    sendDataPacketsToArduino(Constants::DAC_RESOLUTION_BITS);
+  }
 }
 
 enum class CompatibilityStatus : int {
@@ -379,10 +387,10 @@ std::unique_ptr<ProtocolBatch> ProtocolPlanner::getNextBatch(
   // Create and return batch object
   if (initial_break_type) {
     return std::make_unique<InitialBreakBatch>(
-        batch_id, instr, std::move(batch_steps), logger_ptr, arduinoResources_);
+        batch_id, instr, std::move(batch_steps), logger_ptr);
   } else {
     return std::make_unique<PulseChainBatch>(
-        batch_id, instr, std::move(batch_steps), logger_ptr, arduinoResources_);
+        batch_id, instr, std::move(batch_steps), logger_ptr);
   }
 }
 
@@ -434,16 +442,8 @@ void ProtocolPlanner::executeProtocol() {
     throw std::runtime_error("No batches to execute.");
   }
   try {
-      // FIXME: arduinoResources_ false...
-    if (arduinoResources_) {
-      std::cout << "Arduino used in ProtocolPlanner" << std::endl;
-      // Send 0 brightness to Arduino
-      std::lock_guard<std::mutex> lock(
-          arduinoResources_->get().arduinoMsgMutex);
-      arduinoResources_->get().arduinoMsgQueue.push(0);
-      arduinoResources_->get().arduinoMsgCV.notify_one();
-    } else {
-      std::cout << "Arduino NOT used in ProtocolPlanner" << std::endl;
+    if (h_Serial) {
+      sendCommandToArduino(*h_Serial, EXECUTE);
     }
     if (batches.size() == 1) {
       ProtocolBatch& batch = *batches[0];
@@ -487,14 +487,6 @@ void ProtocolPlanner::executeProtocol() {
         Timing::precise_sleep_for(total_duration_ms - busy_duration_ms);
       }
     }
-    // Turn off Arduino again
-    if (arduinoResources_) {
-      // Send 0 brightness to Arduino
-      std::lock_guard<std::mutex> lock(
-          arduinoResources_->get().arduinoMsgMutex);
-      arduinoResources_->get().arduinoMsgQueue.push(0);
-      arduinoResources_->get().arduinoMsgCV.notify_one();
-    }
   } catch (const std::exception& e) {
     shutDownDevice();
     const char* err_str = e.what();
@@ -511,6 +503,11 @@ void ProtocolPlanner::shutDownDevice() {
   try {
     // Turn off device
     logger_ptr->trace("shutDownDevice()");
+    if (h_Serial) {
+      sendCommandToArduino(*h_Serial, RESET);
+      logger_ptr->trace("Sent RESET command to Arduino.");
+    }
+
     err = TL6WL_setLED_HeadPowerStates(instr, VI_FALSE, VI_FALSE, VI_FALSE,
                                        VI_FALSE, VI_FALSE, VI_FALSE);
     if (VI_SUCCESS != err) {  // Handle failure to turn off LEDs
@@ -591,4 +588,76 @@ char* ProtocolPlanner::toChars(const std::string& prefix,
     delete[] batchChars;
   }
   return pPlannerChars;
+}
+
+void ProtocolPlanner::createArduinoDataPackets(int dac_resolution_bits) {
+  logger_ptr->trace(
+      "ProtocolPlanner::createArduinoDataPackets(): clear packets.");
+  arduino_data_packets_.clear();
+  logger_ptr->trace(
+      "ProtocolPlanner::createArduinoDataPackets(): creating packets.");
+  if (steps.empty()) {
+    return;
+  }
+  for (auto& step : steps) {
+    long step_duration_ms = 0;
+    if (step.isBreak()) {
+      step_duration_ms = step.getBreakDurationMs();
+    } else {
+      step_duration_ms = step.getTotalDurationMs();
+    }
+    ArduinoDataPacket packet = createStepDataPacket(
+        step.brightness, static_cast<uint32_t>(step_duration_ms), false,
+        dac_resolution_bits);
+    arduino_data_packets_.push_back(packet);
+  }
+  // Log created packets (with number of packets and list of durations in ms or
+  // us)
+  logger_ptr->trace("ProtocolPlanner::createArduinoDataPackets(): created " +
+                    std::to_string(arduino_data_packets_.size()) +
+                    " packets. Durations:");
+  int i_step = 1;
+  for (const auto& packet : arduino_data_packets_) {
+    logger_ptr->trace(" \tStep " + std::to_string(i_step) +
+                      " duration: " + std::to_string(packet.stepDuration) +
+                      (packet.isMicroseconds ? " us." : " ms."));
+    i_step++;
+  }
+}
+
+void ProtocolPlanner::sendDataPacketsToArduino(int dac_resolution_bits) {
+  if (!h_Serial) {
+    throw std::runtime_error(
+        "No valid serial handle for Arduino communication.");
+  } else {
+    logger_ptr->trace(
+        "ProtocolPlanner::sendDataPacketsToArduino(): sending packets.");
+    for (auto& packet : arduino_data_packets_) {
+      try {
+        uint8_t crc = sendDataPacketToArduino(h_Serial.value(), packet,
+                                              dac_resolution_bits);
+        if (crc != packet.crc) {
+          std::string err_msg =
+              "CRC mismatch when sending packet to Arduino. "
+              "Expected: " +
+              std::to_string(packet.crc) + ", received: " + std::to_string(crc);
+          logger_ptr->error("ProtocolPlanner::sendDataPacketsToArduino(): " +
+                            err_msg);
+          throw std::runtime_error(err_msg);
+        }
+      } catch (const std::exception& e) {
+        const char* err_str = e.what();
+        if (err_str == nullptr) {
+          err_str = "Unknown error";
+        }
+        logger_ptr->error(
+            "ProtocolPlanner::sendDataPacketsToArduino(): Error sending data "
+            "packet to Arduino: " +
+            std::string(err_str));
+        throw std::runtime_error(err_str);
+      }
+      logger_ptr->trace(
+          "ProtocolPlanner::sendDataPacketsToArduino(): packets sent.");
+    }
+  }
 }

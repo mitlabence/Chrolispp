@@ -6,9 +6,7 @@
 
 class InitialBreakBatch : public ProtocolBatch {
  public:
-  InitialBreakBatch(unsigned short batch_id, ViSession instr, const std::vector<ProtocolStep>& steps, Logger* logger_ptr,
-                    std::optional<std::reference_wrapper<ArduinoResources>>
-                        arduinoResources = std::nullopt);
+  InitialBreakBatch(unsigned short batch_id, ViSession instr, const std::vector<ProtocolStep>& steps, Logger* logger_ptr);
 
   std::chrono::milliseconds getBusyDurationMs() const override;
   std::chrono::milliseconds getTotalDurationMs() const override;

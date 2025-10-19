@@ -1,10 +1,12 @@
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
-#include <string>
 #include <shlobj.h>
+
 #include <sstream>
+#include <string>
 #include <vector>
+
 #include "ProtocolStep.hpp"
 
 std::string BrowseCSV();
@@ -19,8 +21,8 @@ std::string getCurrentDateTime();
 
 std::string generateLogFileName(const std::string& prefix);
 
-
 void showOpenCSVInstructions();
 
-void intToCharArray(int number, char* charArray, size_t bufferSize);
+void intToCharArray(ViUInt16 number, char* charArray, size_t bufferSize);
+
 #endif  // UTILS_HPP

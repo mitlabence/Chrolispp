@@ -160,7 +160,7 @@ void showOpenCSVInstructions() {
             << "5. brightness (integer, 0 - 1000, 1000 = 100.0 %)" << std::endl;
 }
 
-void intToCharArray(int number, char* charArray, size_t bufferSize) {
+void intToCharArray(ViUInt16 number, char* charArray, size_t bufferSize) {
   // Convert integer to string
   std::string numberString = std::to_string(number);
 

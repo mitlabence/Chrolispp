@@ -7,6 +7,7 @@ constexpr int BATCH_HEADER_CHARS_BUFFERSIZE =
 constexpr int STEP_CHARS_BUFFERSIZE =
     128;  // Buffer size for ProtocolStep printing function
 constexpr int PROTOCOL_PLANNER_HEADER_CHARS_BUFFERSIZE = 30;
+constexpr int DAC_RESOLUTION_BITS =
+    12;  // Default DAC resolution bits for Arduino
 }  // namespace Constants
-
 #endif  // CONSTANTS_HPP

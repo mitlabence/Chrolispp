@@ -19,9 +19,7 @@ break)
 class PulseChainBatch : public ProtocolBatch {
  public:
   PulseChainBatch(unsigned short batch_id, ViSession instr,
-                  const std::vector<ProtocolStep>& steps, Logger* logger_ptr,
-                  std::optional<std::reference_wrapper<ArduinoResources>>
-                      arduinoResources = std::nullopt);
+                  const std::vector<ProtocolStep>& steps, Logger* logger_ptr);
 
   std::chrono::milliseconds getBusyDurationMs() const override;
   std::chrono::milliseconds getTotalDurationMs() const override;

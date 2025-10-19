@@ -45,18 +45,18 @@
  * In this case, a single break of length <time between pulses> is executed,
  * disregarding all other values.
  */
-//FIXME: for single_pulses_quick_2color.csv, Error determining end of batch: batch_end <= step_cursor. Batch_id: 2, batch_end: -1, step_cursor: 2
+// FIXME: for single_pulses_quick_2color.csv, Error determining end of batch:
+// batch_end <= step_cursor. Batch_id: 2, batch_end: -1, step_cursor: 2
 /*
 single_pulses_quick.csv:
 2025-10-17 17:06:27.774	[ERROR]	Error determining end of batch: batch_end <=
-step_cursor. Batch_id: 1, batch_end: 0, step_cursor: 0 
-2025-10-17 17:06:27.774 [ERROR]	Error determining end of batch: batch_end <= step_cursor. Batch_id: 2,
-batch_end: 1, step_cursor: 1
-2025-10-17 17:06:27.774	[ERROR]	Error
-determining end of batch: batch_end <= step_cursor. Batch_id: 3, batch_end: 2,
-step_cursor: 2 
-2025-10-17 17:06:27.776	[ERROR]	Error determining end of batch:
-batch_end <= step_cursor. Batch_id: 4, batch_end: -1, step_cursor: 3
+step_cursor. Batch_id: 1, batch_end: 0, step_cursor: 0
+2025-10-17 17:06:27.774 [ERROR]	Error determining end of batch: batch_end <=
+step_cursor. Batch_id: 2, batch_end: 1, step_cursor: 1 2025-10-17 17:06:27.774
+[ERROR]	Error determining end of batch: batch_end <= step_cursor. Batch_id: 3,
+batch_end: 2, step_cursor: 2 2025-10-17 17:06:27.776	[ERROR]	Error
+determining end of batch: batch_end <= step_cursor. Batch_id: 4, batch_end: -1,
+step_cursor: 3
 
 */
 // TODO: update keypress mode!
@@ -67,8 +67,8 @@ batch_end <= step_cursor. Batch_id: 4, batch_end: -1, step_cursor: 3
 //  TODO: add Arduino as a communications queue (each queue element should be
 //  executed immediately... so in best case, queue will be always directly
 //  emptied).
-
-// FIXME: testpattern11.
+// TODO: unify variable naming convention (either camelCase or snake_case)
+// TODO: Ctrl+C does not stop arduino! Need to press reset on it...
 
 #include <Windows.h>
 #include <conio.h>  // for key-press mode
@@ -82,7 +82,6 @@ batch_end <= step_cursor. Batch_id: 4, batch_end: -1, step_cursor: 3
 #include <vector>
 
 #include "ArduinoCommands.hpp"
-#include "ArduinoResources.hpp"
 #include "COMFunctions.hpp"
 #include "LEDFunctions.hpp"
 #include "Logger.hpp"
@@ -100,25 +99,6 @@ constexpr auto CMD_COM_CHECK =
 constexpr auto CMD_LIGHT_OFF = 1;  // Command word: set Arduino output to 0
 constexpr bool USE_BOB =
     true;  // whether to use the breakout board for timing signals
-
-ArduinoResources arduinoResources;
-
-void arduinoMessageThread(HANDLE h_Serial, int dac_resolution_bits) {
-  while (!arduinoResources.stopArduinoMsgThread) {
-    std::unique_lock<std::mutex> lock(arduinoResources.arduinoMsgMutex);
-    arduinoResources.arduinoMsgCV.wait(lock, [] {
-      return !arduinoResources.arduinoMsgQueue.empty() ||
-             arduinoResources.stopArduinoMsgThread;
-    });
-
-    if (!arduinoResources.arduinoMsgQueue.empty()) {
-      ViUInt16 brightness = arduinoResources.arduinoMsgQueue.front();
-      arduinoResources.arduinoMsgQueue.pop();
-      lock.unlock();  // unlock before processing
-      sendBrightnessToArduino(h_Serial, brightness, dac_resolution_bits);
-    }
-  }
-}
 
 struct CleanupContext {
   ViSession instr;
@@ -346,18 +326,11 @@ int main() {
       // read message, set up firmware-specific behavior
       try {
         firmwareVersion = readMessage(h_Serial, 1);
-        if (firmwareVersion[0] == 1) {  // only digital signals
+        if (firmwareVersion[0] == 4) {  // The only compatible firmware version
+                                        // with this Chrolispp version
           arduinoFound = true;
-          dac_resolution_bits = 1;
-        } else if (firmwareVersion[0] ==
-                   2) {  // Arduino Uno built-in PWM, 8-bit resolution
-          arduinoFound = true;
-          dac_resolution_bits = 8;
-        } else if (firmwareVersion[0] == 3) {  // MCP4725 DAC, 12-bit resolution
-          arduinoFound = true;
-          dac_resolution_bits = 12;
         } else {
-          std::cerr << "Invalid firmware version from Arduino: "
+          std::cerr << "Invalid firmware version from Arduino (expected 4): "
                     << std::to_string(firmwareVersion[0]) << std::endl;
           return -1;
         }
@@ -518,13 +491,11 @@ int main() {
       step.printStep();
     }
     if (arduinoFound) {
-      std::cout << "Using arduinoResources in Chorlispp.cpp" << std::endl;
-      protocolPlanner =
-          std::make_unique<ProtocolPlanner>(instr, protocolSteps, logger.get(), arduinoResources);
-    } else {
-      std::cout << "NOT using arduinoResources in Chorlispp.cpp" << std::endl;
       protocolPlanner = std::make_unique<ProtocolPlanner>(
-          instr, protocolSteps, logger.get());
+          instr, protocolSteps, logger.get(), h_Serial);
+    } else {
+      protocolPlanner = std::make_unique<ProtocolPlanner>(
+          instr, protocolSteps, logger.get(), std::nullopt);
     }
   }
   // Log and print protocol
@@ -562,10 +533,6 @@ int main() {
   // Update the assignment to match the new type
   std::signal(SIGINT, signalHandler);
   std::optional<std::thread> arduinoThread;
-  if (arduinoFound) {
-    // Start Arduino message thread
-    arduinoThread.emplace(arduinoMessageThread, h_Serial, dac_resolution_bits);
-  }
   if (keyPressMode) {
     std::cout << "Press Ctrl+C to quit the key-press mode." << std::endl;
     // TODO: add listener to one button, say, S, to stim for 4 s with LED 0.
@@ -664,12 +631,6 @@ int main() {
   }
 
   printf("\nClose Device\n");
-  if (arduinoThread && arduinoThread->joinable()) {
-    arduinoResources.stopArduinoMsgThread = true;
-    arduinoResources.arduinoMsgCV.notify_all();  // wake up thread if waiting
-    arduinoThread->join();
-  }
-
   err = cleanup(instr, h_Serial, &logger);
   if (VI_SUCCESS != err) {
     sprintf_s(err_buffer, "TL6WL_close() : Error Code = %#.8lX", err);

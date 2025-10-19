@@ -20,7 +20,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ArduinoCommands.hpp" />
-    <ClInclude Include="include\ArduinoResources.hpp" />
     <ClInclude Include="include\COMFunctions.hpp" />
     <ClInclude Include="include\constants.hpp" />
     <ClCompile Include="src\ArduinoCommands.cpp" />

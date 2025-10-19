@@ -10,20 +10,25 @@ Logger::Logger(const std::string& filename) {
 }
 
 Logger::~Logger() {
+  flush();  // ensure all buffered messages are written
   if (logFile.is_open()) {
     logFile.close();
   }
 }
 
-void Logger::trace(const std::string& message) {
-  logFile << getTimestamp() << "\t[TRACE]\t\t" << message << std::endl;
+void Logger::log(LogType type, const std::string& message) {
+  buffer.push_back({type, getTimestamp(), message});
 }
 
-void Logger::error(const std::string& message) {
-  logFile << getTimestamp() << "\t[ERROR]\t" << message << std::endl;
+void Logger::trace(const std::string& message) { log(LogType::Trace, message); }
+void Logger::error(const std::string& message) { log(LogType::Error, message); }
+void Logger::info(const std::string& message) { log(LogType::Info, message); }
+void Logger::protocol(const std::string& message) {
+  log(LogType::Protocol, message);
 }
-void Logger::info(const std::string& message) {
-  logFile << getTimestamp() << "\t[INFO]\t" << message << std::endl;
+
+void Logger::warning(const std::string& message) {
+  log(LogType::Warning, message);
 }
 
 void Logger::multiLineInfo(char* msg) {
@@ -44,14 +49,29 @@ void Logger::multiLineProtocol(char* msg) {
   }
 }
 
-void Logger::protocol(const std::string& message) {
-  logFile << getTimestamp() << "\t[PROTOCOL]\t" << message << std::endl;
+std::string Logger::format(const LogMessage& msg) {
+  std::string typeStr;
+  switch (msg.type) {
+    case LogType::Trace:
+      typeStr = "[TRACE]";
+      break;
+    case LogType::Error:
+      typeStr = "[ERROR]";
+      break;
+    case LogType::Info:
+      typeStr = "[INFO]";
+      break;
+    case LogType::Protocol:
+      typeStr = "[PROTOCOL]";
+      break;
+    case LogType::Warning:
+      typeStr = "[WARNING]";
+      break;
+  }
+  std::ostringstream oss;
+  oss << msg.timestamp << "\t" << typeStr << "\t" << msg.message;
+  return oss.str();
 }
-
-void Logger::warning(const std::string& message) {
-  logFile << getTimestamp() << "\t[WARNING]\t" << message << std::endl;
-}
-
 std::string Logger::getTimestamp() {
   auto now = std::chrono::system_clock::now();
   std::time_t now_time = std::chrono::system_clock::to_time_t(now);
@@ -69,4 +89,11 @@ std::string Logger::getTimestamp() {
                 static_cast<int>(ms.count()));
 
   return timestamp;
+}
+
+void Logger::flush() {
+  for (const auto& msg : buffer) {
+    logFile << format(msg) << std::endl;
+  }
+  buffer.clear();
 }

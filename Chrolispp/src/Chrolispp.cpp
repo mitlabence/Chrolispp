@@ -130,6 +130,7 @@ static ViStatus cleanup(ViSession instr, HANDLE h_Serial,
   }
   // TODO: add pointer check (if (ptr && ptr->get())
   logger_ptr->info("LEDs turned off, connection closed.");
+  logger_ptr->flush();
   return err;
 }
 

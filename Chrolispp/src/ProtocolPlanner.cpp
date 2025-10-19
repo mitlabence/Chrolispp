@@ -493,8 +493,11 @@ void ProtocolPlanner::executeProtocol() {
     if (err_str == nullptr) {
       err_str = "Unknown error";
     }
+    logger_ptr->error("Error during executeProtocol: " + std::string(err_str));
+    logger_ptr->flush();
     throw std::runtime_error(err_str);
   }
+  logger_ptr->flush();
   shutDownDevice();
 }
 void ProtocolPlanner::shutDownDevice() {

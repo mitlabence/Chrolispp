@@ -34,12 +34,12 @@ class ProtocolPlanner {
   ViSession instr;
   bool batches_loaded = false;
   bool device_set_up = false;
-  bool useArduino_;
+  bool useArduino_ = false;
   int i_next_batch_to_execute = 0;
   std::vector<ProtocolStep> steps;
   size_t n_steps;
   Logger* logger_ptr;
-  std::optional<HANDLE> h_Serial;
+  HANDLE h_Serial_;
   std::unique_ptr<ProtocolBatch> getNextBatch(unsigned short batch_id,
                                               int& step_cursor);
   ValidationResult validateStep(ProtocolStep& step);

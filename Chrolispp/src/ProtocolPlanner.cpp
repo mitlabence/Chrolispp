@@ -31,8 +31,7 @@ ProtocolPlanner::ProtocolPlanner(ViSession instr,
                                  std::optional<HANDLE> h_Serial = std::nullopt)
     : instr(instr),
       steps(std::move(protocolSteps)),
-      logger_ptr(logger_ptr),
-      h_Serial(h_Serial) {
+      logger_ptr(logger_ptr) {
   // TODO: for each different wavelength, one can already program the LED
   // machine with calculated delays. If multiple steps with the same
   // wavelength
@@ -92,11 +91,17 @@ ProtocolPlanner::ProtocolPlanner(ViSession instr,
   batches_loaded = true;
   // If using Arduino, create Arduino data packets
   if (h_Serial) {
+    useArduino_ = true;
+    h_Serial_ = h_Serial.value();
     logger_ptr->trace("Sending RESET to Arduino.");
-    sendCommandToArduino(h_Serial.value(),
+    std::cout << "Sending RESET to Arduino." << std::endl;
+    sendCommandToArduino(h_Serial_,
                          RESET);  // Reset before writing steps
+    std::cout << "Creating Arduino data packets..." << std::endl;
     createArduinoDataPackets(Constants::DAC_RESOLUTION_BITS);
+    std::cout << "Sending data packets to Arduino..." << std::endl;
     sendDataPacketsToArduino(Constants::DAC_RESOLUTION_BITS);
+    std::cout << "All data packets sent to Arduino." << std::endl;
   }
 }
 
@@ -442,8 +447,8 @@ void ProtocolPlanner::executeProtocol() {
     throw std::runtime_error("No batches to execute.");
   }
   try {
-    if (h_Serial) {
-      sendCommandToArduino(*h_Serial, EXECUTE);
+    if (useArduino_) {
+      sendCommandToArduino(h_Serial_, EXECUTE);
     }
     if (batches.size() == 1) {
       ProtocolBatch& batch = *batches[0];
@@ -506,8 +511,8 @@ void ProtocolPlanner::shutDownDevice() {
   try {
     // Turn off device
     logger_ptr->trace("shutDownDevice()");
-    if (h_Serial) {
-      sendCommandToArduino(*h_Serial, RESET);
+    if (useArduino_) {
+      sendCommandToArduino(h_Serial_, RESET);
       logger_ptr->trace("Sent RESET command to Arduino.");
     }
 
@@ -629,7 +634,7 @@ void ProtocolPlanner::createArduinoDataPackets(int dac_resolution_bits) {
 }
 
 void ProtocolPlanner::sendDataPacketsToArduino(int dac_resolution_bits) {
-  if (!h_Serial) {
+  if (!useArduino_) {
     throw std::runtime_error(
         "No valid serial handle for Arduino communication.");
   } else {
@@ -637,7 +642,7 @@ void ProtocolPlanner::sendDataPacketsToArduino(int dac_resolution_bits) {
         "ProtocolPlanner::sendDataPacketsToArduino(): sending packets.");
     for (auto& packet : arduino_data_packets_) {
       try {
-        uint8_t crc = sendDataPacketToArduino(h_Serial.value(), packet,
+        uint8_t crc = sendDataPacketToArduino(h_Serial_, packet,
                                               dac_resolution_bits);
         if (crc != packet.crc) {
           std::string err_msg =

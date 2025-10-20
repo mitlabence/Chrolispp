@@ -28,6 +28,10 @@ constexpr uint8_t LEGACY_CHECK =
          // firmware version, blinks LEDs and moves DAC to max, to half, then to
          // 0 again in a short time.
 
+constexpr uint8_t CRC_MISMATCH_ERROR = 255;  // Error code returned by Arduino
+                                             // if CRC mismatch occurs
+
+#pragma pack(push, 1)  // Ensure no padding
 struct ArduinoDataPacket {
   uint8_t commandWord;  // e.g., CMD_SET_BRIGHTNESS_AND_DURATION
   uint32_t stepDuration;
@@ -36,6 +40,7 @@ struct ArduinoDataPacket {
                               // see scaleBrightnessToArduino)
   uint8_t crc;                // CRC for error checking
 };
+#pragma pack(pop)
 
 ArduinoDataPacket createStepDataPacket(ViUInt16& brightness,
                                        uint32_t stepDuration,

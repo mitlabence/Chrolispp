@@ -9,15 +9,19 @@ Adafruit_MCP4725 dac;
 constexpr uint8_t APPEND_STEP =
   10;  // Command word: append this step to the Arduino's internal queue. Expected response: CRC (should equal packet's CRC)
 constexpr uint8_t REMOVE_LAST_STEP =
-  20;                                  // Command word: pop previous step. Should return same byte + 1 (21) on
-                                       // success
-constexpr uint8_t RESET = 30;          // Command word: reset Arduino internal queue.
-                                       // Should return same byte + 1 (31) on success
-constexpr uint8_t EXECUTE = 40;        // Command word: start executing queued steps.
-                                       // Should return same byte + 1 (41) on success
-constexpr uint8_t VERSION_CHECK = 50;  // Command word: check Arduino firmware version. Should return FIRMWARE_VERSION
-constexpr uint8_t LEGACY_CHECK = 60;   // Replaces legacy 6666 command + manually checking DAC levels: returns firmware version, blinks LEDs and moves DAC to max, to half, then to 0 again in a short time.
+  20;                                        // Command word: pop previous step. Should return same byte + 1 (21) on
+                                             // success
+constexpr uint8_t RESET = 30;                // Command word: reset Arduino internal queue.
+                                             // Should return same byte + 1 (31) on success
+constexpr uint8_t EXECUTE = 40;              // Command word: start executing queued steps.
+                                             // Should return same byte + 1 (41) on success
+constexpr uint8_t VERSION_CHECK = 50;        // Command word: check Arduino firmware version. Should return FIRMWARE_VERSION
+constexpr uint8_t LEGACY_CHECK = 60;         // Replaces legacy 6666 command + manually checking DAC levels: returns firmware version, blinks LEDs and moves DAC to max, to half, then to 0 again in a short time.
+constexpr uint8_t CRC_MISMATCH_ERROR = 255;  // Error code returned by Arduino
+                                             // if CRC mismatch occurs
 
+
+// TODO: right now, LEGACY_CHECK is the character "<" (with No line ending setting obviously). Change command words for letter ascii codes! like append = a, delete = d, reset = r, execute = e, version check = v, legacy = l
 
 #pragma pack(push, 1)
 struct ArduinoDataPacket {
@@ -30,7 +34,7 @@ struct ArduinoDataPacket {
 #pragma pack(pop)
 
 const size_t PACKET_SIZE = sizeof(ArduinoDataPacket);
-
+const size_t PAYLOAD_SIZE = sizeof(ArduinoDataPacket) - 1;  // excluding commandWord
 uint8_t computeCRC(const ArduinoDataPacket& packet) {
   // TODO: This is actually not CRC but checksum for now.Implement a CRC
   // variant. (This should be the same as in the Chrolispp source code at all times)
@@ -70,28 +74,35 @@ uint16_t val = 0;
 void setup() {
   Serial.begin(9600);
   dac.begin(0x60);
+  blinkNTimes(5);
 }
 
 void loop() {
   if (Serial.available()) {
+    //uint8_t command = Serial.parseInt();
     uint8_t command = Serial.read();
     switch (command) {
       case APPEND_STEP:
-        // Wait for full packet
-        while (Serial.available() < PACKET_SIZE - 1)
-          ;  // already read command byte
-
+        uint8_t buffer[PAYLOAD_SIZE];
+        // Wait for full payload
+        while (Serial.available() < PAYLOAD_SIZE)
+          ;
+        Serial.readBytes(reinterpret_cast<char*>(buffer), PAYLOAD_SIZE);
         ArduinoDataPacket pkt;
         pkt.commandWord = command;
-        Serial.readBytes(reinterpret_cast<char*>(&pkt.stepDuration), PACKET_SIZE - 1);
 
-        if (pkt.crc == computeCRC(pkt)) {
+        // Copy remaining fields from buffer
+        memcpy(&pkt.stepDuration, buffer, PAYLOAD_SIZE);
+
+        uint8_t crc_computed;
+        crc_computed = computeCRC(pkt);
+        if (pkt.crc == crc_computed) {
           if (queueSize < MAX_QUEUE_SIZE) {
             queue[queueSize++] = pkt;
           }
-          Serial.write(pkt.crc);  // echo CRC as acknowledgment
+          Serial.write(pkt.crc);  // ACK
         } else {
-          Serial.write(0xFF);  // CRC error
+          Serial.write(crc_computed);  // NACK or error echo
         }
         break;
       case REMOVE_LAST_STEP:
@@ -100,6 +111,7 @@ void loop() {
         break;
       case RESET:
         queueSize = 0;
+        dac.setVoltage(0, false);
         Serial.write(RESET + 1);
         break;
       case EXECUTE:
@@ -107,7 +119,7 @@ void loop() {
         for (size_t i = 0; i < queueSize; ++i) {
           const ArduinoDataPacket& pkt = queue[i];
           unsigned long startTime = pkt.isMicroseconds ? micros() : millis();
-          dac.setVoltage(4095, false);
+          dac.setVoltage(pkt.brightnessScaled, false);
           unsigned long endTime = pkt.isMicroseconds ? micros() : millis();
           unsigned long elapsed = endTime - startTime;
           if (pkt.stepDuration > elapsed) {
@@ -135,11 +147,6 @@ void loop() {
         delay(100);
         dac.setVoltage(0, false);
         blinkNTimes(1);
-        break;
-      default:
-        digitalWrite(LEDPIN, HIGH);
-        delay(500);
-        digitalWrite(LEDPIN, LOW);
         break;
     }
   }

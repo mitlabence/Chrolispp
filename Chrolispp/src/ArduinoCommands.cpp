@@ -1,6 +1,8 @@
 #include "ArduinoCommands.hpp"
 
+#include "COMFunctions.hpp"
 #include "Utils.hpp"
+
 ViUInt16 scaleBrightnessToArduino(ViUInt16& brightness,
                                   int dac_resolution_bits) {
   if (dac_resolution_bits >
@@ -79,6 +81,14 @@ uint16_t sendDataPacketToArduino(HANDLE h_Serial, ArduinoDataPacket& packet,
   }
 }
 
+uint8_t sendCommandToArduinoOld(HANDLE h_Serial, uint8_t command) {
+  char message[5];
+  intToCharArray(command, message, sizeof(message));
+  writeMessage(h_Serial, message, sizeof(message));
+  char* response = readMessage(h_Serial, 1);
+  return static_cast<uint8_t>(response[0]);
+}
+
 /*
 Send single-byte command to Arduino.
 */
@@ -106,7 +116,8 @@ uint8_t sendCommandToArduino(HANDLE h_Serial, uint8_t command) {
 
 uint8_t computeCRC(const ArduinoDataPacket& packet) {
   // TODO: This is actually not CRC but checksum for now.Implement a CRC
-  // variant.
+  // variant. (This should be the same as in the Chrolispp source code at all
+  // times)
   const uint8_t* data = reinterpret_cast<const uint8_t*>(&packet);
   size_t length =
       sizeof(ArduinoDataPacket) - sizeof(uint8_t);  // exclude CRC itself

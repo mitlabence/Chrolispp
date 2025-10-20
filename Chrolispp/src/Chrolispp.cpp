@@ -93,10 +93,6 @@ step_cursor: 3
 
 constexpr auto VERSION_STR = "2.0.0";  // Version, change with each release!;
 constexpr auto LOGFNAME_PREFIX = "stimlog_";  // beginning of log file name;
-
-constexpr auto CMD_COM_CHECK =
-    6666;  // Command word: Arduino recognizes this and responds with "1";
-constexpr auto CMD_LIGHT_OFF = 1;  // Command word: set Arduino output to 0
 constexpr bool USE_BOB =
     true;  // whether to use the breakout board for timing signals
 
@@ -123,9 +119,7 @@ static ViStatus cleanup(ViSession instr, HANDLE h_Serial,
   err = TL6WL_close(instr);
   // Send 1 to Arduino to turn off pulse
   if (h_Serial != INVALID_HANDLE_VALUE) {
-    char message[5] = {0};  // initialize to 0s
-    intToCharArray(CMD_LIGHT_OFF, message, sizeof(message));
-    writeMessage(h_Serial, message, sizeof(message));
+    sendCommandToArduino(h_Serial, RESET);
     CloseHandle(h_Serial);
   }
   // TODO: add pointer check (if (ptr && ptr->get())
@@ -162,8 +156,7 @@ int main() {
   ViUInt32 rsrcCnt = 0;
   WCHAR* COM_PORT;
   bool arduinoFound = false;
-  char* firmwareVersion = new char[1];  // 1 byte, can hold -127 to 127?
-  firmwareVersion[0] = static_cast<char>(-1);
+  uint8_t firmwareVersion = 0;
   bool skipArduino = false;
   int dac_resolution_bits =
       0;  // if stays 0, no communication with Arduino will happen. If 1,
@@ -315,35 +308,20 @@ int main() {
         std::cerr << "Error configuring serial port: " << e.what() << std::endl;
         return -1;
       }
+
       // Write message
-      try {
-        char message[5];
-        intToCharArray(CMD_COM_CHECK, message, sizeof(message));
-        writeMessage(h_Serial, message, sizeof(message));
-      } catch (const com_io_error& e) {
-        std::cerr << "Error writing to serial port: " << e.what() << std::endl;
-        return -1;
-      }
-      // read message, set up firmware-specific behavior
-      try {
-        firmwareVersion = readMessage(h_Serial, 1);
-        if (firmwareVersion[0] == 4) {  // The only compatible firmware version
-                                        // with this Chrolispp version
-          arduinoFound = true;
-        } else {
-          std::cerr << "Invalid firmware version from Arduino (expected 4): "
-                    << std::to_string(firmwareVersion[0]) << std::endl;
-          return -1;
-        }
-      } catch (const com_io_error& e) {
-        std::cerr << "Error reading from serial port: " << e.what()
-                  << std::endl;
+      firmwareVersion = sendCommandToArduino(h_Serial, VERSION_CHECK);
+      if (firmwareVersion == 4) {
+        arduinoFound = true;
+      } else {
+        std::cerr << "Invalid firmware version from Arduino (expected 4): "
+                  << +firmwareVersion << std::endl;
         return -1;
       }
     }
     if (arduinoFound) {
-      std::cout << "Arduino detected with firmware ID: "
-                << std::to_string(firmwareVersion[0]) << std::endl;
+      std::cout << "Arduino detected with firmware ID: " << +firmwareVersion
+                << std::endl;
     } else {
       std::cout << "Skipping Arduino connection." << std::endl;
     }
@@ -405,8 +383,9 @@ int main() {
   std::string arduino_found_string = arduinoFound ? "true" : "false";
   logger->info("Arduino used: " + arduino_found_string);
   if (arduinoFound) {
-    logger->info("Arduino firmware version: " +
-                 std::to_string(firmwareVersion[0]));
+    std::ostringstream oss;
+    oss << "Arduino firmware version: " << +firmwareVersion;
+    logger->info(oss.str());
   }
   /*
   // Minimal example defining ProtocolPlanner:
@@ -644,7 +623,6 @@ int main() {
     std::cout << '\n' << "Press q then enter to quit...";
   }
   logger->info("Application closed.");
-  delete[] firmwareVersion;
   return 0;
 }
 

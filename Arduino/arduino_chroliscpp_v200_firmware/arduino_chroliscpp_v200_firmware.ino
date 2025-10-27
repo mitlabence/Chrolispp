@@ -1,4 +1,3 @@
-#define LEDPIN 13
 #define FIRMWARE_VERSION 4  // 1 is digital, 2 is PWM, 3 is MCP4725 code for this project <v2.0.0 (i.e. deprecated), 4 for version compatible with Chrolis++ v2.0.0. \
                        //Used to store in log file after recording
 #include <Wire.h>
@@ -52,15 +51,15 @@ void blinkNTimes(short N) {
   if (N <= 0) { return; }
   // First N-1 times wait after turning off again
   for (int i = 0; i < N - 1; i++) {
-    digitalWrite(LEDPIN, HIGH);
+    digitalWrite(LED_BUILTIN, HIGH);
     delay(100);
-    digitalWrite(LEDPIN, LOW);
+    digitalWrite(LED_BUILTIN, LOW);
     delay(100);
   }
   // Do not wait at end of last one
-  digitalWrite(LEDPIN, HIGH);
+  digitalWrite(LED_BUILTIN, HIGH);
   delay(100);
-  digitalWrite(LEDPIN, LOW);
+  digitalWrite(LED_BUILTIN, LOW);
 }
 
 
@@ -73,6 +72,10 @@ uint16_t val = 0;
 
 void setup() {
   Serial.begin(9600);
+  while (Serial.available()) {
+    Serial.read(); // discard incoming bytes
+  }
+  pinMode(LED_BUILTIN, OUTPUT);
   dac.begin(0x60);
   blinkNTimes(5);
 }
@@ -133,11 +136,11 @@ void loop() {
         }
         queueSize = 0;  // clear after execution
         break;
-      case VERSION_CHECK:
+      case VERSION_CHECK: // blink 2 times
         Serial.write(FIRMWARE_VERSION);
-        blinkNTimes(3);
+        blinkNTimes(2);
         break;
-      case LEGACY_CHECK:
+      case LEGACY_CHECK: // blink 3 times
         Serial.write(FIRMWARE_VERSION);
         dac.setVoltage(4095, false);
         blinkNTimes(1);

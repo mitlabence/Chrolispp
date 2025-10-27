@@ -1,5 +1,30 @@
 #include <COMFunctions.hpp>
 #include <stdexcept>
+
+std::wstring getPortName(int portNumber) {
+  if (portNumber < 0) {
+    throw std::invalid_argument("Invalid port number: " +
+                                std::to_string(portNumber));
+  }
+  std::wstring portName = (portNumber < 10)
+                              ? L"COM" + std::to_wstring(portNumber)
+                              : L"\\\\.\\COM" + std::to_wstring(portNumber);
+  return portName;
+}
+
+HANDLE openSerialHandle(const std::wstring portName) {
+  HANDLE h_Serial = CreateFileW(portName.c_str(), GENERIC_READ | GENERIC_WRITE,
+                                0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  if (h_Serial == INVALID_HANDLE_VALUE) {
+    if (GetLastError() == ERROR_FILE_NOT_FOUND) {
+      throw com_init_error("Serial port does not exist");
+    }
+    throw com_init_error("Error opening serial port");
+  }
+
+  return h_Serial;
+}
+
 HANDLE createSerialHandle(const WCHAR* comPort) {
   HANDLE h_Serial = CreateFile(comPort, GENERIC_READ | GENERIC_WRITE, 0, 0,
                                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
@@ -43,6 +68,7 @@ WCHAR* stringToWCHAR(const std::string& str) {
   return wStr;
 }
 
+
 void configureTimeoutSettings(HANDLE h_Serial) {
   COMMTIMEOUTS timeout = {0};
   timeout.ReadIntervalTimeout = 60;
@@ -55,11 +81,10 @@ void configureTimeoutSettings(HANDLE h_Serial) {
   }
 }
 void writeMessage(HANDLE h_Serial, const char* data, size_t dataSize) {
-    DWORD dwBytesWritten;
-    if (!WriteFile(h_Serial, data, dataSize, &dwBytesWritten,
-                    NULL)) {
+  DWORD dwBytesWritten;
+  if (!WriteFile(h_Serial, data, dataSize, &dwBytesWritten, NULL)) {
     throw com_io_error("Error writing to serial port");
-    }
+  }
 }
 
 char* readMessage(HANDLE h_Serial, size_t dataSize) {

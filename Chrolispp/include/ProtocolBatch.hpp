@@ -67,12 +67,12 @@ class ProtocolBatch {
         instr(instr),
         logger_ptr(logger_ptr),
         protocol_steps(steps),
-        busy_duration_ms(0),
-        total_duration_ms(0) {};
+        busy_duration_us(0),
+        total_duration_us(0) {};
   virtual ~ProtocolBatch() = default;
 
-  virtual std::chrono::milliseconds getBusyDurationMs() const = 0;
-  virtual std::chrono::milliseconds getTotalDurationMs() const = 0;
+  virtual std::chrono::microseconds getBusyDurationUs() const = 0;
+  virtual std::chrono::microseconds getTotalDurationUs() const = 0;
   virtual std::chrono::microseconds execute() = 0;
   unsigned short getBatchId() const { return batch_id; }
   std::string getBatchType() const { return batch_type; }
@@ -99,8 +99,8 @@ class ProtocolBatch {
   ViSession instr;
   Logger* logger_ptr;
   std::vector<ProtocolStep> protocol_steps;
-  std::chrono::milliseconds busy_duration_ms;
-  std::chrono::milliseconds total_duration_ms;
+  std::chrono::microseconds busy_duration_us;
+  std::chrono::microseconds total_duration_us;
   bool execute_attempted = false;  // Block running execute() more than once
                                    // (even if execute() did not succeed)
   /*

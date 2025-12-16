@@ -11,6 +11,7 @@
 #include "ProtocolBatch.hpp"
 #include "ProtocolStep.hpp"
 #include "TL6WL.h"
+#include "DurationAndUnit.hpp"
 
 enum ValidationResult {
   VALID_STEP = 0,

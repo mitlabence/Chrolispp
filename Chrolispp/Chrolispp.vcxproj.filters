@@ -59,6 +59,9 @@
     <ClInclude Include="include\ProtocolStep.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\external\visatype.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="include\external\IviVisaType.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -69,9 +72,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\external\TLUP.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\external\visatype.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\COMFunctions.hpp">
@@ -99,6 +99,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\constants.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DurationAndUnit.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

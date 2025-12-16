@@ -14,6 +14,8 @@
 #include "TL6WL.h"
 #include "Timing.hpp"
 #include "constants.hpp"
+#include "DurationAndUnit.hpp"
+
 static void logError(Logger& logger_ptr, std::string_view func_name,
                      uint32_t err, bool verbose = true) {
   std::string err_msg =
@@ -153,8 +155,8 @@ static CompatibilityStatus stepsCompatibleForMerge(const ProtocolStep& step1,
   }
   if ((step1.led_index == step2.led_index) &&
       (step1.brightness == step2.brightness) &&
-      (step1.pulse_width_ms == step2.pulse_width_ms) &&
-      (step1.time_between_pulses_ms == step2.time_between_pulses_ms)) {
+      (step1.pulse_width_us == step2.pulse_width_us) &&
+      (step1.time_between_pulses_us == step2.time_between_pulses_us)) {
     return CompatibilityStatus::CompatibleSameShape;
   }
   return CompatibilityStatus::Incompatible;
@@ -180,12 +182,18 @@ void ProtocolPlanner::mergeSteps(std::vector<ProtocolStep>& protocolSteps) {
       }
       case CompatibilityStatus::BothBreaks: {
         // Both are breaks, merge into current, erase next
-        ViInt32 current_break = current.getBreakDurationMs();
-        ViInt32 next_break = next.getBreakDurationMs();
-        current.setBreakDuration(current_break + next_break);
+        ViInt32 current_break_us = current.getBreakDurationUs();
+        ViInt32 next_break_us = next.getBreakDurationUs();
+        current.setBreakDuration(current_break_us + next_break_us);
+		DurationAndUnit current_break_dau = findDurationAndUnit(current_break_us);
+		DurationAndUnit next_break_dau = findDurationAndUnit(next_break_us);
+		DurationAndUnit merged_break_dau = findDurationAndUnit(current_break_us + next_break_us);
         std::string merge_msg =
-            std::format("Merge consecutive breaks: {} ms + {} ms = {} ms",
-                        current_break, next_break, current_break + next_break);
+            std::format("Merge consecutive breaks: {} {} + {} {} = {} {}",
+                        current_break_dau.duration, current_break_dau.unit, 
+                next_break_dau.duration, next_break_dau.unit, 
+                merged_break_dau.duration, 
+                merged_break_dau.unit);
         logger_ptr->trace(merge_msg);
         std::cout << merge_msg << std::endl;
         protocolSteps.erase(protocolSteps.begin() + i + 1);
@@ -194,11 +202,13 @@ void ProtocolPlanner::mergeSteps(std::vector<ProtocolStep>& protocolSteps) {
         continue;
       }
       case CompatibilityStatus::CompatibleSameShape: {
+		  DurationAndUnit pulse_width_dau = findDurationAndUnit(current.pulse_width_us);
+		  DurationAndUnit time_between_pulses_dau = findDurationAndUnit(current.time_between_pulses_us);
         std::string merge_msg = std::format(
             "Merge compatible steps: LED {}, brightness {}, pulse width {} "
-            "ms, time between pulses {} ms, number of pulses {} + {} = {}",
-            current.led_index, current.brightness, current.pulse_width_ms,
-            current.time_between_pulses_ms, current.n_pulses, next.n_pulses,
+            "{}, time between pulses {} {}, number of pulses {} + {} = {}",
+			current.led_index, current.brightness, pulse_width_dau.duration, pulse_width_dau.unit,
+            time_between_pulses_dau.duration, time_between_pulses_dau.unit, current.n_pulses, next.n_pulses,
             current.n_pulses + next.n_pulses);
         logger_ptr->trace(merge_msg);
         std::cout << merge_msg << std::endl;
@@ -212,23 +222,30 @@ void ProtocolPlanner::mergeSteps(std::vector<ProtocolStep>& protocolSteps) {
       case CompatibilityStatus::CompatibleGaplessAndBreak: {
         // current is gapless single pulse, next is break or compatible single
         // pulse, merge into current, erase next
-        ViInt32 next_break_duration;
+        ViInt32 next_break_duration_us;
         if (next.isBreak()) {
-          next_break_duration = next.getBreakDurationMs();
+          next_break_duration_us = next.getBreakDurationUs();
         } else {
-          next_break_duration = next.time_between_pulses_ms;
+          next_break_duration_us = next.time_between_pulses_us;
         }
+		bool any_is_us_mode = current.is_us_mode || next.is_us_mode;
+		std::string unit_str = any_is_us_mode ? "us" : "ms";
+        DurationAndUnit new_pulse_width_dau = findDurationAndUnit(current.pulse_width_us + next.pulse_width_us);
+        DurationAndUnit new_time_between_pulses_dau = findDurationAndUnit(current.time_between_pulses_us + next_break_duration_us);
+
         std::string merge_msg = std::format(
             "Merge gapless single pulse with {}: LED {}, brightness {}, "
-            "new pulse width {} ms, new time between pulses {} ms",
+            "new pulse width {} {}, new time between pulses {} {}",
             next.isBreak() ? "break" : "compatible single pulse",
             current.led_index, current.brightness,
-            current.pulse_width_ms + next.pulse_width_ms,
-            current.time_between_pulses_ms + next_break_duration);
+            new_pulse_width_dau.duration,
+            new_pulse_width_dau.unit,
+            new_time_between_pulses_dau.duration,
+            new_time_between_pulses_dau.unit);
         logger_ptr->trace(merge_msg);
         std::cout << merge_msg << std::endl;
-        current.pulse_width_ms += next.pulse_width_ms;  // +0 if next is break
-        current.time_between_pulses_ms += next_break_duration;
+        current.pulse_width_us += next.pulse_width_us;  // +0 if next is break
+        current.time_between_pulses_us += next_break_duration_us;
         protocolSteps.erase(protocolSteps.begin() + i + 1);
         // Don't increment i but check again with same current in case of
         // multiple matches
@@ -237,18 +254,22 @@ void ProtocolPlanner::mergeSteps(std::vector<ProtocolStep>& protocolSteps) {
       case CompatibilityStatus::CompatibleGaplessAndSingle: {
         // current is gapless single pulse, next is compatible single pulse,
         // merge into current, erase next
+		  DurationAndUnit new_pulse_width_dau = findDurationAndUnit(current.pulse_width_us + next.pulse_width_us);
+		  DurationAndUnit new_time_between_pulses_dau = findDurationAndUnit(current.time_between_pulses_us + next.time_between_pulses_us);
+
         std::string merge_msg = std::format(
             "Merge gapless single pulse with compatible single pulse: LED {}, "
-            "brightness {}, new pulse width {} ms, time between pulses {} ms, "
+            "brightness {}, new pulse width {} {}, time between pulses {} {}, "
             "number of pulses stays 1",
             current.led_index, current.brightness,
-            current.pulse_width_ms + next.pulse_width_ms,
-            current.time_between_pulses_ms + next.time_between_pulses_ms);
+            new_pulse_width_dau.duration,
+			new_pulse_width_dau.unit,
+            new_time_between_pulses_dau.duration, new_time_between_pulses_dau.unit);
         logger_ptr->trace(merge_msg);
         std::cout << merge_msg << std::endl;
-        current.pulse_width_ms += next.pulse_width_ms;
-        current.time_between_pulses_ms +=
-            next.time_between_pulses_ms;  // should be 0 +
+        current.pulse_width_us += next.pulse_width_us;
+        current.time_between_pulses_us +=
+            next.time_between_pulses_us;  // should be 0 +
                                           // next.time_between_pulses_ms
         current.n_pulses = 1;
         // time between pulses remains the same
@@ -456,14 +477,18 @@ void ProtocolPlanner::executeProtocol() {
       batches_loaded = false;
       batch.execute();
       // If total duration > busy duration, sleep for (total - busy)
-      std::chrono::milliseconds total_duration_ms = batch.getTotalDurationMs();
-      std::chrono::milliseconds busy_duration_ms = batch.getBusyDurationMs();
-      if (total_duration_ms > busy_duration_ms) {
+      std::chrono::microseconds total_duration_us = batch.getTotalDurationUs();
+      std::chrono::microseconds busy_duration_us = batch.getBusyDurationUs();
+      if (total_duration_us > busy_duration_us) {
+		  // Convert to next millisecond for sleep precision
+          std::chrono::milliseconds sleep_duration_ms = 
+              std::chrono::duration_cast<std::chrono::milliseconds>(
+				  total_duration_us - busy_duration_us + std::chrono::microseconds(999));
         logger_ptr->trace(
-            "Sleeping for remaining time: " +
-            std::to_string((total_duration_ms - busy_duration_ms).count()) +
-            " ms");
-        Timing::precise_sleep_for(total_duration_ms - busy_duration_ms);
+            "Remaining time: " +
+            std::to_string((total_duration_us - busy_duration_us).count()) +
+            " us. Sleeping for rounded up duration: " + std::to_string(sleep_duration_ms.count()) + " ms.");
+        Timing::precise_sleep_for(sleep_duration_ms);
       }
     } else if (batches.size() > 1) {
       // Set up first batch
@@ -480,16 +505,20 @@ void ProtocolPlanner::executeProtocol() {
       }
       // Sleep for (total - busy) duration of last step
       // if total duration > busy duration
-      std::chrono::milliseconds total_duration_ms =
-          batches[batches.size() - 1]->getTotalDurationMs();
-      std::chrono::milliseconds busy_duration_ms =
-          batches[batches.size() - 1]->getBusyDurationMs();
-      if (total_duration_ms > busy_duration_ms) {
+      std::chrono::microseconds total_duration_us =
+          batches[batches.size() - 1]->getTotalDurationUs();
+      std::chrono::microseconds busy_duration_us =
+          batches[batches.size() - 1]->getBusyDurationUs();
+
+      if (total_duration_us > busy_duration_us) {
+          std::chrono::milliseconds duration_to_sleep_ms =
+              std::chrono::duration_cast<std::chrono::milliseconds>(
+                  total_duration_us - busy_duration_us + std::chrono::microseconds(999));
         logger_ptr->trace(
             "Sleeping for remaining time: " +
-            std::to_string((total_duration_ms - busy_duration_ms).count()) +
-            " ms");
-        Timing::precise_sleep_for(total_duration_ms - busy_duration_ms);
+            std::to_string((total_duration_us - busy_duration_us).count()) +
+            " us, rounded to " );
+        Timing::precise_sleep_for(duration_to_sleep_ms);
       }
     }
   } catch (const std::exception& e) {
@@ -608,14 +637,15 @@ void ProtocolPlanner::createArduinoDataPackets(int dac_resolution_bits) {
     return;
   }
   for (auto& step : steps) {
-    long step_duration_ms = 0;
+    long step_duration_us = 0;
     if (step.isBreak()) {
-      step_duration_ms = step.getBreakDurationMs();
+      step_duration_us = step.getBreakDurationUs();
     } else {
-      step_duration_ms = step.getTotalDurationMs();
+      step_duration_us = step.getTotalDurationUs();
     }
+	DurationAndUnit dau = findDurationAndUnit(step_duration_us);
     ArduinoDataPacket packet = createStepDataPacket(
-        step.brightness, static_cast<uint32_t>(step_duration_ms), false,
+        step.brightness, static_cast<uint32_t>(dau.duration), dau.unit == "us" ? true : false,
         dac_resolution_bits);
     arduino_data_packets_.push_back(packet);
   }

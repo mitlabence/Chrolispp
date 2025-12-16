@@ -91,7 +91,7 @@ step_cursor: 3
 #include "Timing.hpp"
 #include "Utils.hpp"
 
-constexpr auto VERSION_STR = "2.0.0";  // Version, change with each release!;
+constexpr auto VERSION_STR = "2.1.0";  // Version, change with each release!;
 constexpr auto LOGFNAME_PREFIX = "stimlog_";  // beginning of log file name;
 constexpr bool USE_BOB =
     true;  // whether to use the breakout board for timing signals
@@ -449,16 +449,17 @@ int main() {
       }
       // Check if the pulse length is > 0 (0 means break) and not too large (< 6
       // h = 21600000 ms)
-      if (step.pulse_width_ms < 0 || step.pulse_width_ms > 21600000) {
+      if (step.pulse_width_us < 0 || step.pulse_width_us > 21600000) {
         sprintf_s(err_buffer, "Invalid pulse length in step %d", i_step + 1);
         logger->error(err_buffer);
         std::cerr << err_buffer << std::endl;
         return -1;
       }
-      // Check if the time between pulses is not negative and not too large (< 6
-      // h = 21600000 ms)
-      if (step.time_between_pulses_ms < 0 ||
-          step.time_between_pulses_ms > 21600000) {
+      // Check if the time between pulses is not negative and not too large (< 1
+      // h = 3600.000 ms = 3600.000.000 us)
+      // TODO: increase allowed range somehow?
+      if (step.time_between_pulses_us < 0 ||
+          step.time_between_pulses_us > 3600000000) {
         sprintf_s(err_buffer, "Invalid time between pulses in step %d",
                   i_step + 1);
         logger->error(err_buffer);
@@ -467,7 +468,7 @@ int main() {
       }
       // Check corner case: break of length 0 (both pulse length and time
       // between pulses are set to 0
-      if (step.pulse_width_ms == 0 && step.time_between_pulses_ms == 0) {
+      if (step.pulse_width_us == 0 && step.time_between_pulses_us == 0) {
         sprintf_s(err_buffer, "Invalid step %d: No action.", i_step + 1);
         logger->error(err_buffer);
         std::cerr << err_buffer << std::endl;

@@ -8,8 +8,8 @@ class InitialBreakBatch : public ProtocolBatch {
  public:
   InitialBreakBatch(unsigned short batch_id, ViSession instr, const std::vector<ProtocolStep>& steps, Logger* logger_ptr);
 
-  std::chrono::milliseconds getBusyDurationMs() const override;
-  std::chrono::milliseconds getTotalDurationMs() const override;
+  std::chrono::microseconds getBusyDurationUs() const override;
+  std::chrono::microseconds getTotalDurationUs() const override;
   std::chrono::microseconds execute() override;
   void setUpNextBatch(ProtocolBatch& next_batch) override;
   void setUpThisBatch() override;

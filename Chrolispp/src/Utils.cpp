@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "ProtocolStep.hpp"
+#include "Utils.hpp"
 
 std::string BrowseCSV() {
   TCHAR szFile[MAX_PATH] = {0};
@@ -102,7 +103,7 @@ std::vector<ProtocolStep> readProtocolCSV(const std::string& filePath) {
     int columnCount = 0;
 
     // Read the first five columns
-    while (std::getline(ss, value, ',') && columnCount < 5) {
+    while (std::getline(ss, value, ',') && columnCount < 6) {
       try {
         int intValue = std::stoi(value);
         row.push_back(intValue);
@@ -113,12 +114,23 @@ std::vector<ProtocolStep> readProtocolCSV(const std::string& filePath) {
       columnCount++;
     }
 
-    // Ensure there are exactly 5 values read
+    // Legacy mode: 5 columns. Then us mode is off (default).
     if (row.size() == 5) {
-      ProtocolStep step(i_step, row[0], row[1], row[2], row[3], row[4]);
+      ProtocolStep step(i_step, row[0], row[1], row[2], row[3], row[4], false);
       protocolSteps.push_back(step);
       i_step++;
     }
+    else if (row.size() == 6) {  // New mode (since 2.1.0) with 6 columns, last column is us mode flag
+      bool is_ns_mode = (row[5] != 0);
+      ProtocolStep step(i_step, row[0], row[1], row[2], row[3], row[4],
+                        is_ns_mode);
+      protocolSteps.push_back(step);
+      i_step++;
+    } else {
+      std::cerr << "Invalid number of columns in CSV file. Expected 5 or 6, got "
+                << row.size() << std::endl;
+      continue;
+	}
   }
 
   file.close();
@@ -154,10 +166,11 @@ void showOpenCSVInstructions() {
   std::cout << "Choose the CSV file with the protocol. Each row should have "
                "five entries:\n"
             << "1. LED index (0-5)\n"
-            << "2. pulse length (integer, ms)\n"
+            << "2. pulse duration (integer, ms)\n"
             << "3. time between pulses (integer, ms)\n"
             << "4. number of pulses (integer)\n"
-            << "5. brightness (integer, 0 - 1000, 1000 = 100.0 %)" << std::endl;
+            << "5. brightness (integer, 0 - 1000, 1000 = 100.0 %)\n"
+            << "6. (optional) 1 if 'us mode' (pulse duration and time between pulses in us, multiples of 5 us), 0 if ms mode." << std::endl;
 }
 
 void intToCharArray(ViUInt16 number, char* charArray, size_t bufferSize) {

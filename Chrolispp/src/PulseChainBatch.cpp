@@ -12,8 +12,8 @@ PulseChainBatch::PulseChainBatch(unsigned short batch_id, ViSession instr,
   }
   // Calculate busy and total duration. Busy duration is total duration minus
   // the very last idle time
-  int busy_ms = 0;
-  int total_ms = 0;
+  int busy_us = 0; // TODO: if at least one step has us_mode, busy_ms and total_ms should be in ns?
+  int total_us = 0;
   for (const auto& step : steps) {
     // Set LED mask proper digit to 1, e.g. for led_index = 2, led_mask =
     // 0b000100
@@ -21,27 +21,27 @@ PulseChainBatch::PulseChainBatch(unsigned short batch_id, ViSession instr,
     if (!step.isBreak()) {
       led_mask |= (1 << led_index);
     }
-    total_ms += step.getTotalDurationMs();
+    total_us += step.getTotalDurationUs();
   }
   // subtract the last idle time (time between pulses of the last step last
   // pulse) to get busy_ms
-  ViUInt32 last_break_duration = steps.back().time_between_pulses_ms;
+  ViUInt32 last_break_duration = steps.back().time_between_pulses_us;
   has_trailing_break = last_break_duration > 0;
-  busy_ms = total_ms - last_break_duration;
+  busy_us = total_us - last_break_duration;
 
-  busy_duration_ms = std::chrono::milliseconds(busy_ms);
-  total_duration_ms = std::chrono::milliseconds(total_ms);
+  busy_duration_us = std::chrono::microseconds(busy_us);
+  total_duration_us = std::chrono::microseconds(total_us);
 
   protocol_steps = steps;
   batch_type = "PulseChainBatch";
 }
 
-std::chrono::milliseconds PulseChainBatch::getBusyDurationMs() const {
-  return busy_duration_ms;
+std::chrono::microseconds PulseChainBatch::getBusyDurationUs() const {
+  return busy_duration_us;
 }
 
-std::chrono::milliseconds PulseChainBatch::getTotalDurationMs() const {
-  return total_duration_ms;
+std::chrono::microseconds PulseChainBatch::getTotalDurationUs() const {
+  return total_duration_us;
 }
 
 std::chrono::microseconds PulseChainBatch::execute() {
@@ -83,6 +83,9 @@ std::chrono::microseconds PulseChainBatch::execute() {
         "PulseChainBatch::execute(): Error starting signal generator.");
   }
 
+  // Cast to next millisecond
+  std::chrono::milliseconds busy_duration_ms = duration_cast<std::chrono::milliseconds>(busy_duration_us + std::chrono::microseconds(999));
+
   Timing::precise_sleep_for(busy_duration_ms);
   logger_ptr->trace("PulseChainBatch execute() done.");
   if (has_trailing_break) {  // turn off LEDs to make sure set up of next batch
@@ -97,7 +100,7 @@ std::chrono::microseconds PulseChainBatch::execute() {
   auto end = std::chrono::high_resolution_clock::now();
   auto actual_duration_us =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-  busy_duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+  busy_duration_us = std::chrono::duration_cast<std::chrono::microseconds>(
       actual_duration_us);  // update actual busy duration
   return actual_duration_us;
 }
@@ -117,8 +120,10 @@ void PulseChainBatch::setUpNextBatch(ProtocolBatch& next_batch) {
           end - start);  // Truncate to milliseconds
   // Wait for rest of the (busy - total duration) time if any left after
   // <duration> time passed Convert duration to nearest milliseconds int
-  if (duration < total_duration_ms - busy_duration_ms) {
-    Timing::precise_sleep_for(total_duration_ms - busy_duration_ms - duration);
+  if (duration < total_duration_us - busy_duration_us) {
+	  // Cast to next millisecond
+	  std::chrono::milliseconds total_duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(total_duration_us - busy_duration_us - duration + std::chrono::microseconds(999));
+    Timing::precise_sleep_for(total_duration_ms);
   }
   logger_ptr->trace("PulseChainBatch setUpNextBatch() done.");
 }
@@ -152,10 +157,13 @@ void PulseChainBatch::setUpThisBatch() {
     int led_index = step.led_index;
     int brightness = step.brightness;
     led_brightness[led_index] = brightness;
-
+    if (step.isBreak()) {
+        duration_so_far_us += step.getTotalDurationUs();
+        continue;
+    }
     err = TL6WL_TU_AddGeneratedSelfRunningSignal(
         instr, led_index + 1, VI_FALSE, duration_so_far_us,
-        step.pulse_width_ms * 1000, step.time_between_pulses_ms * 1000,
+        step.pulse_width_us, step.time_between_pulses_us,
         step.n_pulses);
     if (VI_SUCCESS != err) {
       throw std::runtime_error(
@@ -165,14 +173,14 @@ void PulseChainBatch::setUpThisBatch() {
           "PulseChainBatch::setUpThisBatch(): Error setting up step: signalNr" +
           std::to_string(led_index + 1) + ", startDelay: " +
           std::to_string(duration_so_far_us) + "us, activeTimeus" +
-          std::to_string(step.pulse_width_ms * 1000) + " us, inactiveTimeus " +
-          std::to_string(step.time_between_pulses_ms * 1000) +
+          std::to_string(step.pulse_width_us) + " us, inactiveTimeus " +
+          std::to_string(step.time_between_pulses_us) +
           " us, repetitionCount " + std::to_string(step.n_pulses));
     }
     // Add breakout box signal as well
     err = TL6WL_TU_AddGeneratedSelfRunningSignal(
         instr, step.led_index + 1 + 6, VI_FALSE, duration_so_far_us,
-        step.pulse_width_ms * 1000, step.time_between_pulses_ms * 1000,
+        step.pulse_width_us, step.time_between_pulses_us,
         step.n_pulses);
     if (VI_SUCCESS != err) {
       throw std::runtime_error(
@@ -184,11 +192,11 @@ void PulseChainBatch::setUpThisBatch() {
           "step: signalNr" +
           std::to_string(led_index + 1 + 6) + ", startDelay: " +
           std::to_string(duration_so_far_us) + "us, activeTimeus" +
-          std::to_string(step.pulse_width_ms * 1000) + " us, inactiveTimeus " +
-          std::to_string(step.time_between_pulses_ms * 1000) +
+          std::to_string(step.pulse_width_us) + " us, inactiveTimeus " +
+          std::to_string(step.time_between_pulses_us) +
           " us, repetitionCount " + std::to_string(step.n_pulses));
     }
-    duration_so_far_us += step.getTotalDurationMs() * 1000;
+    duration_so_far_us += step.getTotalDurationUs();
   }
   logger_ptr->trace(
       "PulseChainBatch::setUpThisBatch(): Setting brightnesses to " +

@@ -17,19 +17,19 @@ InitialBreakBatch::InitialBreakBatch(unsigned short batch_id, ViSession instr,
     throw std::invalid_argument(
         "InitialBreakBatch must contain a single break step.");
   }
-  busy_duration_ms =
-      std::chrono::milliseconds(0);  // LED is not busy during a break
-  total_duration_ms =
-      std::chrono::milliseconds(steps[0].time_between_pulses_ms);
+  busy_duration_us =
+      std::chrono::microseconds(0);  // LED is not busy during a break
+  total_duration_us =
+      std::chrono::microseconds(steps[0].time_between_pulses_us);
   batch_type = "InitialBreakBatch";
 }
 
-std::chrono::milliseconds InitialBreakBatch::getBusyDurationMs() const {
-  return busy_duration_ms;
+std::chrono::microseconds InitialBreakBatch::getBusyDurationUs() const {
+  return busy_duration_us;
 }
 
-std::chrono::milliseconds InitialBreakBatch::getTotalDurationMs() const {
-  return total_duration_ms;
+std::chrono::microseconds InitialBreakBatch::getTotalDurationUs() const {
+  return total_duration_us;
 }
 
 std::chrono::microseconds InitialBreakBatch::execute() {
@@ -47,9 +47,7 @@ std::chrono::microseconds InitialBreakBatch::execute() {
   // Calculate duration
   auto actual_duration_us =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-  auto actual_duration_ms =
-      std::chrono::duration_cast<std::chrono::milliseconds>(actual_duration_us);
-  busy_duration_ms = actual_duration_ms;  // update actual busy duration
+  busy_duration_us = actual_duration_us;  // update actual busy duration
   return actual_duration_us;
 }
 
@@ -63,13 +61,16 @@ void InitialBreakBatch::setUpNextBatch(ProtocolBatch& next_batch) {
   }
   next_batch.setUpThisBatch();
   auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::milliseconds duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(
+  std::chrono::microseconds duration =
+      std::chrono::duration_cast<std::chrono::microseconds>(
           end - start);  // Truncate to milliseconds
   // Wait for rest of the (busy - total duration) time if any left after
   // <duration> time passed Convert duration to nearest milliseconds int
-  if (duration < total_duration_ms - busy_duration_ms) {
-    Timing::precise_sleep_for(total_duration_ms - busy_duration_ms - duration);
+  if (duration < total_duration_us - busy_duration_us) {
+    std::chrono::milliseconds total_duration_ms =         std::chrono::duration_cast<std::chrono::milliseconds>(
+        total_duration_us - busy_duration_us - duration +
+		std::chrono::microseconds(999));
+    Timing::precise_sleep_for(total_duration_ms);
   }
   logger_ptr->trace("InitialBreakBatch setUpNextBatch() done.");
 }

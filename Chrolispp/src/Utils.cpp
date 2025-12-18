@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 
-#include "ProtocolStep.hpp"
 #include "Utils.hpp"
 
 std::string BrowseCSV() {

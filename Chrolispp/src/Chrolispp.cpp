@@ -91,7 +91,7 @@ step_cursor: 3
 #include "Timing.hpp"
 #include "Utils.hpp"
 
-constexpr auto VERSION_STR = "2.1.0";  // Version, change with each release!;
+constexpr auto VERSION_STR = "2.1.1";  // Version, change with each release!;
 constexpr auto LOGFNAME_PREFIX = "stimlog_";  // beginning of log file name;
 constexpr bool USE_BOB =
     true;  // whether to use the breakout board for timing signals

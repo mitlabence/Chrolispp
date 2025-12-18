@@ -447,19 +447,15 @@ int main() {
         std::cerr << err_buffer << std::endl;
         return -1;
       }
-      // Check if the pulse length is > 0 (0 means break) and not too large (< 6
-      // h = 21600000 ms)
-      if (step.pulse_width_us < 0 || step.pulse_width_us > 21600000) {
+      // Check if the pulse length is > 0 (0 means break)
+      if (step.pulse_width_us < 0) {
         sprintf_s(err_buffer, "Invalid pulse length in step %d", i_step + 1);
         logger->error(err_buffer);
         std::cerr << err_buffer << std::endl;
         return -1;
       }
-      // Check if the time between pulses is not negative and not too large (< 1
-      // h = 3600.000 ms = 3600.000.000 us)
-      // TODO: increase allowed range somehow?
-      if (step.time_between_pulses_us < 0 ||
-          step.time_between_pulses_us > 3600000000) {
+      // Check if the time between pulses is not negative
+      if (step.time_between_pulses_us < 0) {
         sprintf_s(err_buffer, "Invalid time between pulses in step %d",
                   i_step + 1);
         logger->error(err_buffer);
@@ -474,8 +470,8 @@ int main() {
         std::cerr << err_buffer << std::endl;
         return -1;
       }
-      // Check if the number of pulses is positive and not too large (< 10000)
-      if (step.n_pulses <= 0 || step.n_pulses > 10000) {
+      // Check if the number of pulses is positive
+      if (step.n_pulses <= 0) {
         std::cout << std::to_string(step.n_pulses) << std::endl;
         sprintf_s(err_buffer, "Invalid number of pulses in step %d: %d",
                   i_step + 1, step.n_pulses);

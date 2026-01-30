@@ -64,20 +64,21 @@ std::chrono::microseconds PulseChainBatch::execute() {
       led_states[i] = VI_TRUE;
     }
   }
+
   logger_ptr->trace(
-      "PulseChainBatch::execute(): TL6WL_setLED_HeadPowerStates() to set "
+      "PulseChainBatch::execute(): TL6WL_TU_StartStopGeneratorOutput_TU(instr, "
+      "true)");
+  err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, true);
+  err = TL6WL_setLED_HeadPowerStates(instr, led_states[0], led_states[1],
+      led_states[2], led_states[3],
+      led_states[4], led_states[5]);
+  logger_ptr->trace(
+      "PulseChainBatch::execute(): TL6WL_setLED_HeadPowerStates() has set "
       "states to " +
       std::to_string(led_states[0]) + ", " + std::to_string(led_states[1]) +
       ", " + std::to_string(led_states[2]) + ", " +
       std::to_string(led_states[3]) + ", " + std::to_string(led_states[4]) +
       ", " + std::to_string(led_states[5]));
-  err = TL6WL_setLED_HeadPowerStates(instr, led_states[0], led_states[1],
-                                     led_states[2], led_states[3],
-                                     led_states[4], led_states[5]);
-  logger_ptr->trace(
-      "PulseChainBatch::execute(): TL6WL_TU_StartStopGeneratorOutput_TU(instr, "
-      "true)");
-  err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, true);
   if (VI_SUCCESS != err) {
     throw std::runtime_error(
         "PulseChainBatch::execute(): Error starting signal generator.");

@@ -1,5 +1,5 @@
 # Chrolis++
-Custom CSV-based protocol for the ThorLabs Chrolis 6-wavelength LED source.
+Custom CSV-based protocol for the ThorLabs Chrolis 6-wavelength LED source. [Chrolispp-planner](https://github.com/mitlabence/chrolispp-planner) is a related tool aimed at simplifying the assembly of illumination protocols.
 ## CSV format
 The CSV file should have 5 columns. Each row defines a sequence of light pulses of the same LED, and these sequences are executed one after the other. The rows in order:
 * The LED index (0-5)

@@ -18,9 +18,7 @@ ViUInt16 scaleBrightnessToArduino(ViUInt16& brightness,
   if (dac_resolution_bits > 2) {
     int dac_resolution = pow(2, dac_resolution_bits) - 1;
     brightness_remapped =
-        static_cast<ViUInt16>(brightness / 1000.0 * dac_resolution) +
-        1;  // add 1 because range starts from 1 in Arduino (0 is reserved for
-            // timeout in Serial.parseInt())
+        static_cast<ViUInt16>(brightness / 1000.0 * dac_resolution);  
   } else if (dac_resolution_bits == 1) {
     // digital output, but cannot send 0 or 1 for "on" signal. Send 2 instead.
     if (brightness > 0) {

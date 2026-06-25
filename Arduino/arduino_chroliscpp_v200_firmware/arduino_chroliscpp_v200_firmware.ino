@@ -118,19 +118,21 @@ void loop() {
         Serial.write(RESET + 1);
         break;
       case EXECUTE:
-        Serial.write(EXECUTE + 1);
+        Serial.write(EXECUTE + 1);  // Expected response is same command word + 1
         for (size_t i = 0; i < queueSize; ++i) {
+
           const ArduinoDataPacket& pkt = queue[i];
           unsigned long startTime = pkt.isMicroseconds ? micros() : millis();
+          if(pkt.brightnessScaled )
           dac.setVoltage(pkt.brightnessScaled, false);
           unsigned long endTime = pkt.isMicroseconds ? micros() : millis();
           unsigned long elapsed = endTime - startTime;
           if (pkt.stepDuration > elapsed) {
             unsigned long remaining = pkt.stepDuration - elapsed;
             if (pkt.isMicroseconds) {
-              delayMicroseconds(pkt.stepDuration);
+              delayMicroseconds(remaining);
             } else {
-              delay(pkt.stepDuration);
+              delay(remaining);
             }
           }
         }

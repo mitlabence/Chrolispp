@@ -379,7 +379,13 @@ std::unique_ptr<ProtocolBatch> ProtocolPlanner::getNextBatch(
     }
     i_current_candidate++;
   }
-  if (batch_end <= step_cursor) {
+  // Create batch object with correct type
+  // Take (unique pointers to) subset of steps from current_step_index to
+  // batch_end (inclusive) if batch_end == -1, change it to last element
+  if (batch_end == -1) {
+      batch_end = n_steps - 1;
+  }
+  else if (batch_end <= step_cursor) {
     // Print batch end and step cursor
     std::logic_error(
         "Error determining end of batch: batch_end <= step_cursor. "
@@ -391,12 +397,6 @@ std::unique_ptr<ProtocolBatch> ProtocolPlanner::getNextBatch(
         "Batch_id: " +
         std::to_string(batch_id) + ", batch_end: " + std::to_string(batch_end) +
         ", step_cursor: " + std::to_string(step_cursor));
-  }
-  // Create batch object with correct type
-  // Take (unique pointers to) subset of steps from current_step_index to
-  // batch_end (inclusive) if batch_end == -1, change it to last element
-  if (batch_end == -1) {
-    batch_end = n_steps - 1;
   }
   // Take reference to subset of steps from current_step_index to batch_end
   // (inclusive)

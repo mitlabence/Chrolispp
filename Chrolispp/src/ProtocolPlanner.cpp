@@ -469,7 +469,8 @@ void ProtocolPlanner::executeProtocol() {
   }
   try {
     if (useArduino_) {
-      sendCommandToArduino(h_Serial_, EXECUTE);
+      uint8_t response = sendCommandToArduino(h_Serial_, EXECUTE);
+      logger_ptr->trace("Sent execute to Arduino. Received " + std::to_string(response));
     }
     if (batches.size() == 1) {
       ProtocolBatch& batch = *batches[0];

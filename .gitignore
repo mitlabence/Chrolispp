@@ -362,3 +362,21 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# CMake / Ninja build artifacts
+build/
+out/build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+install_manifest.txt
+compile_commands.json
+Testing/
+*.ninja
+.ninja_deps
+.ninja_log
+rules.ninja
+
+# Local CMake presets (machine-specific)
+CMakeUserPresets.json

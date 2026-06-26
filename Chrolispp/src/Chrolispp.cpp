@@ -403,31 +403,6 @@ int main() {
     oss << "Arduino firmware version: " << +firmwareVersion;
     logger->info(oss.str());
   }
-  /*
-  // Minimal example defining ProtocolPlanner:
-  #include <vector>
-
-  #include "ProtocolPlanner.hpp"
-  #include "ProtocolStep.hpp"
-  #include "TL6WL.h"
-  int main() {
-    ViSession instr = 0;
-    std::vector<ProtocolStep> protocolSteps;
-    std::unique_ptr<Logger> logger;  // for accessing the logger outside try
-    std::unique_ptr<ProtocolPlanner> planner;
-
-    for (int i = 0; i < 10; i++) {
-        ProtocolStep protocolStep =
-        ProtocolStep(0, i + 10, i + 10, 5 + i, 10 * i + 5);
-        protocolSteps.push_back(protocolStep);
-    }
-
-    // Create ProtocolPlanner object with instr, protocolSteps and logger
-    //ProtocolPlanner planner(instr, protocolSteps, logger.get());
-    planner =
-      std::make_unique<ProtocolPlanner>(instr, protocolSteps, logger.get());
-  }
-  */
   std::unique_ptr<ProtocolPlanner> protocolPlanner;
   if (!keyPressMode) {
     logger->info("Protocol file: " + fpath);

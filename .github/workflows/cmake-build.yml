@@ -1,0 +1,26 @@
+name: CMake Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure (VS2022 x64)
+        shell: pwsh
+        run: |
+          cmake -S . -B out/build/vs2022-x64 `
+            -G "Visual Studio 17 2022" -A x64 `
+            -DCHROLISPP_VISA_BIN_DIR="${{ github.workspace }}/Chrolispp/lib/external" `
+            -DCHROLISPP_VISA_LIB_DIR="${{ github.workspace }}/Chrolispp/lib/external"
+
+      - name: Build (Release)
+        run: cmake --build out/build/vs2022-x64 --config Release --parallel

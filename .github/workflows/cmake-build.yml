@@ -17,7 +17,6 @@ jobs:
         run: |
           cmake --version
           vswhere -all
-          cl
           
       - name: Configure (VS2022 x64)
         shell: pwsh

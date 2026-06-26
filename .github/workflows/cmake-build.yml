@@ -9,11 +9,16 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Diagnostics
+        run: |
+          cmake --version
+          vswhere -all
+          cl
+          
       - name: Configure (VS2022 x64)
         shell: pwsh
         run: |
@@ -22,5 +27,5 @@ jobs:
             -DCHROLISPP_VISA_BIN_DIR="${{ github.workspace }}/Chrolispp/lib/external" `
             -DCHROLISPP_VISA_LIB_DIR="${{ github.workspace }}/Chrolispp/lib/external"
 
-      - name: Build (Release)
+      - name: Build
         run: cmake --build out/build/vs2022-x64 --config Release --parallel

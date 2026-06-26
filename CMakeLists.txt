@@ -6,9 +6,6 @@ configure_file(
   ${CMAKE_BINARY_DIR}/generated/version.hpp
   @ONLY
 )
-target_include_directories(Chrolispp PRIVATE
-  ${CMAKE_BINARY_DIR}/generated
-)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -55,6 +52,7 @@ add_executable(Chrolispp ${CHROLISPP_SOURCES})
 target_include_directories(Chrolispp PRIVATE
     "${CHROLISPP_INCLUDE_DIR}"
     "${CHROLISPP_EXTERNAL_INCLUDE_DIR}"
+    "${CMAKE_BINARY_DIR}/generated"
 )
 
 if(MSVC)

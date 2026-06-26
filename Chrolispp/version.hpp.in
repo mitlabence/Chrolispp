@@ -1,0 +1,2 @@
+#pragma once
+constexpr auto VERSION_STR = "@PROJECT_VERSION@";

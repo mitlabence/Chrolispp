@@ -18,7 +18,7 @@ jobs:
           cmake --version
           vswhere -all
           cl
-          
+
       - name: Configure (VS2022 x64)
         shell: pwsh
         run: |
@@ -27,5 +27,44 @@ jobs:
             -DCHROLISPP_VISA_BIN_DIR="${{ github.workspace }}/Chrolispp/lib/external" `
             -DCHROLISPP_VISA_LIB_DIR="${{ github.workspace }}/Chrolispp/lib/external"
 
+      - name: Get version from CMake
+        id: ver
+        shell: pwsh
+        run: |
+          $line = Select-String -Path CMakeLists.txt -Pattern 'project\s*\(\s*Chrolispp\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)'
+          if (-not $line) { throw "Version not found in CMakeLists.txt" }
+          $v = $line.Matches[0].Groups[1].Value
+          $vDash = $v -replace '\.','-'
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "version_dash=$vDash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Build
         run: cmake --build out/build/vs2022-x64 --config Release --parallel
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = "${{ steps.ver.outputs.version }}"
+          $versionDash = "${{ steps.ver.outputs.version_dash }}"
+
+          $exeSrc = Join-Path $env:GITHUB_WORKSPACE "out/build/vs2022-x64/Release/Chrolispp.exe"
+          $stage = Join-Path $env:GITHUB_WORKSPACE "out/package"
+          $bundleDir = Join-Path $stage "Chrolispp_$versionDash"
+          $exeDst = Join-Path $bundleDir "Chrolispp_$versionDash.exe"
+          $arduinoSrc = Join-Path $env:GITHUB_WORKSPACE "Arduino"
+          $zipPath = Join-Path $stage "Chrolispp_$versionDash.zip"
+
+          Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $bundleDir -Force | Out-Null
+
+          Copy-Item $exeSrc $exeDst -Force
+          Copy-Item $arduinoSrc (Join-Path $bundleDir "Arduino") -Recurse -Force
+
+          Compress-Archive -Path "$bundleDir/*" -DestinationPath $zipPath -Force
+          Write-Host "Created: $zipPath"
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chrolispp_${{ steps.ver.outputs.version_dash }}
+          path: out/package/Chrolispp_${{ steps.ver.outputs.version_dash }}.zip

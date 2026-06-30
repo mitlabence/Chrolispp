@@ -385,7 +385,7 @@ std::unique_ptr<ProtocolBatch> ProtocolPlanner::getNextBatch(
   if (batch_end == -1) {
       batch_end = n_steps - 1;
   }
-  else if (batch_end <= step_cursor) {
+  else if (batch_end < step_cursor) {
     // Print batch end and step cursor
     std::logic_error(
         "Error determining end of batch: batch_end <= step_cursor. "

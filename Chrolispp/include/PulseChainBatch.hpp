@@ -32,6 +32,7 @@ class PulseChainBatch : public ProtocolBatch {
  private:
   int led_mask = 0;
   bool has_trailing_break = false;  // Whether there
+  bool has_guard = false; // Whether the first step has a guard break (for very short pulses)
 };
 
 #endif  // PULSE_CHAIN_BATCH_HPP

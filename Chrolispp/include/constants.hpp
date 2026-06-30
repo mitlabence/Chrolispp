@@ -8,6 +8,7 @@ constexpr int STEP_CHARS_BUFFERSIZE =
 constexpr int PROTOCOL_PLANNER_HEADER_CHARS_BUFFERSIZE = 30;
 constexpr int DAC_RESOLUTION_BITS =
     12;  // Default DAC resolution bits for Arduino
+// FIXME 20 ms is sometimes not enough, sometimes even too much guard time... What does it depend on? PC load, or something else?
 constexpr ViUInt32 STARTUP_GUARD_US = 20000;  // Startup guard time in microseconds. Intended to fix issue stemming from having to start the Chrolis internal generator and only then give power to the LED, resulting in skipped light pulses if they are too short.
 }  // namespace Constants
 #endif  // CONSTANTS_HPP

@@ -13,8 +13,17 @@ PulseChainBatch::PulseChainBatch(unsigned short batch_id, ViSession instr,
   // Calculate busy and total duration. Busy duration is total duration minus
   // the very last idle time
   //TODO: if at least one step has us_mode, busy_ms and total_ms should be in ns?
-  int busy_us = Constants::STARTUP_GUARD_US; // guard break is right in the beginning of the batch, so count as busy time.
-  int total_us = Constants::STARTUP_GUARD_US;
+  int busy_us = 0;
+  int total_us = 0;
+  
+  // If first step is us_mode and < 1 ms, startup guard time must be added, otherwise pulse is invisible. For some reason, pulses of 1 ms are fine if not ms_mode
+  if (steps.front().is_us_mode && steps.front().pulse_width_us < 1000) {
+      busy_us += Constants::STARTUP_GUARD_US; // guard break is right in the beginning of the batch, so count as busy time.
+      total_us += Constants::STARTUP_GUARD_US;
+      has_guard = true;
+	  logger_ptr->warning("PulseChainBatch: First pulse width is less than " + std::to_string(Constants::STARTUP_GUARD_US) + " us. Adding guard break of " + std::to_string(Constants::STARTUP_GUARD_US) + " us to busy and total duration.");
+  }
+  
   for (const auto& step : steps) {
     // Set LED mask proper digit to 1, e.g. for led_index = 2, led_mask =
     // 0b000100
@@ -221,5 +230,5 @@ void PulseChainBatch::setUpThisBatch() {
 
 char* PulseChainBatch::toChars(const std::string& prefix,
                                const std::string& step_level_prefix) {
-  return ProtocolBatch::batchToChars(batch_type, prefix, step_level_prefix);
+	return batchToChars(batch_type + (has_guard ? " with " + std::to_string(Constants::STARTUP_GUARD_US) + " us guard" : ""), prefix, step_level_prefix);
 }

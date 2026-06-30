@@ -90,8 +90,8 @@ step_cursor: 3
 #include "TL6WL.h"
 #include "Timing.hpp"
 #include "Utils.hpp"
+#include "version.hpp"
 
-constexpr auto VERSION_STR = "2.1.3";  // Version, change with each release!;
 constexpr auto LOGFNAME_PREFIX = "stimlog_";  // beginning of log file name;
 constexpr bool USE_BOB =
     true;  // whether to use the breakout board for timing signals

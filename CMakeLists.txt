@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.23)
 
-project(Chrolispp LANGUAGES CXX)
+project(Chrolispp VERSION 2.1.3 LANGUAGES CXX)
+configure_file(
+  ${CMAKE_SOURCE_DIR}/Chrolispp/version.hpp.in
+  ${CMAKE_BINARY_DIR}/generated/version.hpp
+  @ONLY
+)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,6 +52,7 @@ add_executable(Chrolispp ${CHROLISPP_SOURCES})
 target_include_directories(Chrolispp PRIVATE
     "${CHROLISPP_INCLUDE_DIR}"
     "${CHROLISPP_EXTERNAL_INCLUDE_DIR}"
+    "${CMAKE_BINARY_DIR}/generated"
 )
 
 if(MSVC)

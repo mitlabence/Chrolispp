@@ -12,8 +12,9 @@ PulseChainBatch::PulseChainBatch(unsigned short batch_id, ViSession instr,
   }
   // Calculate busy and total duration. Busy duration is total duration minus
   // the very last idle time
-  int busy_us = 0; // TODO: if at least one step has us_mode, busy_ms and total_ms should be in ns?
-  int total_us = 0;
+  //TODO: if at least one step has us_mode, busy_ms and total_ms should be in ns?
+  int busy_us = Constants::STARTUP_GUARD_US; // guard break is right in the beginning of the batch, so count as busy time.
+  int total_us = Constants::STARTUP_GUARD_US;
   for (const auto& step : steps) {
     // Set LED mask proper digit to 1, e.g. for led_index = 2, led_mask =
     // 0b000100
@@ -147,7 +148,7 @@ void PulseChainBatch::setUpThisBatch() {
     throw std::runtime_error(
         "PulseChainBatch::setUpThisBatch(): Error resetting signal generator.");
   }
-  ViUInt32 duration_so_far_us = 0;
+  ViUInt32 duration_so_far_us = Constants::STARTUP_GUARD_US; // Need a guard right in the beginning, otherwise the first pulse may be skipped if it is too short (e.g. 5 us)
   int led_brightness[6] = {0, 0, 0, 0, 0, 0};
   // TODO: extract this logic into constructor: create an array for each
   // parameter TL6WL_TU_AddGeneratedSelfRunningSignal takes, and pre-calculate

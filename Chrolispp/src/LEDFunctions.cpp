@@ -4,7 +4,7 @@
 #include <exception>
 #include <iostream>
 #include <string>
-
+#include <constants.hpp>
 #include "Logger.hpp"
 #include "Utils.hpp"
 
@@ -190,32 +190,34 @@ ViStatus LED_DoSequence(ViSession instr, ViUInt16 led_index,
   led_brightnesses[led_index] = brightness;
   led_states[led_index] = VI_TRUE;
   err = TL6WL_TU_ResetSequence(instr);
-  TL6WL_setLED_HeadBrightness(instr, led_brightnesses[0], led_brightnesses[1],
+  err = TL6WL_setLED_HeadBrightness(instr, led_brightnesses[0], led_brightnesses[1],
                               led_brightnesses[2], led_brightnesses[3],
                               led_brightnesses[4], led_brightnesses[5]);
   // led_index is 0-indexing (0-5), need 1-6; function takes us values, so ms
   // * 1000
   // TODO: add error handling, see (example code)
   // https://github.com/Thorlabs/Light_Sources_Examples/blob/main/C%2B%2B/C_Chrolis/CHROLIS_CSample/CHROLIS_TimingUnit_CppSample.cpp
-  TL6WL_TU_AddGeneratedSelfRunningSignal(
-      instr, led_index + 1, VI_FALSE, 0, pulse_width_ms * 1000,
-      time_between_pulses_ms * 1000, n_pulses);
+  ViUInt32 delay_duration_us = Constants::STARTUP_GUARD_US;  // Startup guard to avoid first spike being cut off.
+  err = TL6WL_TU_AddGeneratedSelfRunningSignal(
+      instr, led_index + 1, VI_FALSE, delay_duration_us, pulse_width_ms * 1000,
+	  time_between_pulses_ms * 1000, n_pulses); 
   if (use_bob) {
     // Also set up corresponding TTL output channel for getting output timing
     // signal (digital, i.e. no LED brightness info!) channels 7-12 are the
     // output channels
     // led_index + 1 + 6
-    TL6WL_TU_AddGeneratedSelfRunningSignal(
-        instr, 7, VI_FALSE, 0, pulse_width_ms * 1000,
+    err = TL6WL_TU_AddGeneratedSelfRunningSignal(
+        instr, 7, VI_FALSE, delay_duration_us, pulse_width_ms * 1000,
         time_between_pulses_ms * 1000, n_pulses);
   }
+  // Official suggestion is to start generator and only then power on LED. Hence the need for guard time above.
+  err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, true);
   TL6WL_setLED_HeadPowerStates(instr, led_states[0], led_states[1],
                                led_states[2], led_states[3], led_states[4],
                                led_states[5]);
-  err = TL6WL_TU_StartStopGeneratorOutput_TU(instr, true);
   Sleep(n_pulses *
         (pulse_width_ms +
-         time_between_pulses_ms));  // TODO: more sophisticated waiting, maybe
+         time_between_pulses_ms) + delay_duration_us);  // TODO: more sophisticated waiting, maybe
                                     // as callback (something like await)?
   return err;
 }
